@@ -91,7 +91,7 @@
 <body>
 <div class="wrap">
   <header>
-    <h1>Sun’î<span class="dot">makam taksim · fretless guitar</span><span class="ver" id="ver">v3.40</span></h1>
+    <h1>Sun’î<span class="dot">makam taksim · fretless guitar</span><span class="ver" id="ver">v3.42</span></h1>
     <p>Sun’î improvises taksims over example makams of Turkish music. The generation is random, yet the <b>seyir</b> (melodic
        direction) and the pull toward the <b>güçlü</b> (dominant) and <b>karar</b> (final) are fixed,
        so every run is different but recognizably the same makam. Pitches come from the AEU 53-comma
@@ -114,6 +114,7 @@
       <button id="open">Open</button>
       <button id="save">Save</button>
       <button id="wav">WAV</button>
+      <button id="shuffle">Shuffle</button>
       <button id="play" class="primary">Play</button>
       <input id="file" type="file" accept=".json,application/json" hidden>
     </div>
@@ -145,7 +146,7 @@
 
 <script>
 "use strict";
-const APP_VERSION = "3.40";
+const APP_VERSION = "3.42";
 const TRANSPOSE = 0.5;           // playback register (down an octave for a warm range)
 const GTR_LP    = 6000;          // bus lowpass (lower this if the guitar is too tiz)
 const GTR_BODY  = 1.5;           // light body low-shelf (dB)
@@ -486,7 +487,7 @@ function playOud(notes){
 /* ---------- UI ---------- */
 const $=s=>document.querySelector(s);
 const selMakam=$("#makam"), elMeta=$("#meta"), elRibbon=$("#ribbon"), elSeq=$("#seq"),
-      elTempo=$("#tempo"), elTval=$("#tval"), btnGen=$("#gen"), btnPlay=$("#play"),
+      elTempo=$("#tempo"), elTval=$("#tval"), btnGen=$("#gen"), btnPlay=$("#play"), btnShuffle=$("#shuffle"),
       pname=$("#pname"), elStatus=$("#status"), btnSave=$("#save"), btnWav=$("#wav"), btnOpen=$("#open"),
       fileInput=$("#file"), elVer=$("#ver");
 
@@ -494,7 +495,7 @@ elVer.textContent="v"+APP_VERSION;
 for(const name in MAKAMLAR){ const o=document.createElement("option"); o.value=name; o.textContent=name; selMakam.appendChild(o); }
 selMakam.value="Hicaz";
 
-let curName=selMakam.value, seq=[], playing=false, timers=[], statusT=null;
+let curName=selMakam.value, seq=[], playing=false, timers=[], statusT=null, shuffleOn=false;
 
 function status(msg,warn){ elStatus.textContent=msg; elStatus.classList.toggle("warn",!!warn);
   clearTimeout(statusT); statusT=setTimeout(()=>{ elStatus.textContent=""; },2800); }
@@ -546,6 +547,7 @@ function drawSeq(m){
 
 function freshSeq(rename){ const m=MAKAMLAR[curName]; seq=generateArc(m); drawSeq(m); if(rename) pname.value=genName(curName); }
 function load(){ const m=MAKAMLAR[curName]; drawRibbon(m); drawMeta(m); freshSeq(true); }
+function pickRandomMakam(){ const ks=Object.keys(MAKAMLAR).filter(k=>k!==curName); return ks[Math.floor(Math.random()*ks.length)]||curName; }
 
 function clearTimers(){ timers.forEach(t=>clearTimeout(t)); timers=[]; }
 function litRibbon(i){ elRibbon.querySelectorAll(".perde").forEach(p=>p.classList.toggle("lit",+p.dataset.i===i)); }
@@ -570,6 +572,7 @@ async function play(){
 }
 function scheduleCycle(token, useCurrent){
   if(!playing || token!==playToken) return;
+  if(!useCurrent && shuffleOn){ curName=pickRandomMakam(); selMakam.value=curName; drawRibbon(MAKAMLAR[curName]); drawMeta(MAKAMLAR[curName]); pname.value=genName(curName); }
   const m=MAKAMLAR[curName], off=offsets(m), beat=60/(+elTempo.value), N=m.perde.length;
   if(!useCurrent){ seq=generateArc(m); }            // a fresh ~3 min arc for each new cycle
 
@@ -700,12 +703,14 @@ async function exportWAV(){
   }catch(err){ status("Export failed",true); }
 }
 
-btnPlay.onclick =()=> playing?stop():play();           // Play / Stop toggle
-btnGen.onclick  =()=>{ stop(); freshSeq(true); };       // New: new melody + new name
+btnPlay.onclick =()=>{ if(playing){ stop(); } else { shuffleOn=false; play(); } };   // Play / Stop toggle
+btnGen.onclick  =()=>{ shuffleOn=false; stop(); freshSeq(true); };                    // New: new melody + new name
+btnShuffle.onclick =()=>{ shuffleOn=true; stop(); curName=pickRandomMakam(); selMakam.value=curName;
+  const m=MAKAMLAR[curName]; drawRibbon(m); drawMeta(m); freshSeq(true); play(); };   // Shuffle: random makam, wanders each cycle
 btnSave.onclick =savePiece;
 btnWav.onclick  =exportWAV;
 btnOpen.onclick =()=> fileInput.click();
-selMakam.onchange=()=>{ stop(); curName=selMakam.value; load(); };
+selMakam.onchange=()=>{ shuffleOn=false; stop(); curName=selMakam.value; load(); };
 elTempo.oninput =()=>{ elTval.textContent=elTempo.value; };
 
 function loadReference(){
