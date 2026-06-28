@@ -91,7 +91,7 @@
 <body>
 <div class="wrap">
   <header>
-    <h1>Sun’î<span class="dot">makam taksim · fretless guitar</span><span class="ver" id="ver">v3.43</span></h1>
+    <h1>Sun’î<span class="dot">makam taksim · fretless guitar</span><span class="ver" id="ver">v3.44</span></h1>
     <p>Sun’î improvises taksims over example makams of Turkish music. The generation is random, yet the <b>seyir</b> (melodic
        direction) and the pull toward the <b>güçlü</b> (dominant) and <b>karar</b> (final) are fixed,
        so every run is different but recognizably the same makam. Pitches come from the AEU 53-comma
@@ -146,7 +146,7 @@
 
 <script>
 "use strict";
-const APP_VERSION = "3.43";
+const APP_VERSION = "3.44";
 const TRANSPOSE = 0.5;           // playback register (down an octave for a warm range)
 const GTR_LP    = 6000;          // bus lowpass (lower this if the guitar is too tiz)
 const GTR_BODY  = 1.5;           // light body low-shelf (dB)
@@ -366,11 +366,14 @@ function generateArc(m){
   const clamp=e=>Math.max(BOT,Math.min(TOP,e));
   const asmaSnap=e=>{ for(const o of [0,1,-1]){ const c=e+o, ff=((c%P)+P)%P; if(rest.includes(ff)) return clamp(c); } return clamp(e); };
 
-  function makeCell(nN,anchor,dirBias){                                        // a fresh makam phrase (own contour, ends on a rest perde)
-    const notes=[]; let p=clamp(anchor);
+  function makeCell(nN,anchor,dirBias){                                        // a fresh makam phrase; directional cells move away from their anchor (ascend / descend)
+    const lo = dirBias>0 ? Math.max(BOT,anchor) : BOT;
+    const hi = dirBias<0 ? Math.min(TOP,anchor) : TOP;
+    const cl = e=>Math.max(lo,Math.min(hi,e));
+    const notes=[]; let p=cl(anchor);
     for(let i=0;i<nN;i++){ const r=Math.random(); const du=r<0.45?0.5:r<0.75?0.75:1.0; notes.push({idx:p,du});
       if(i<nN-1){ const up=Math.random()<(0.5+0.28*dirBias); let st=(Math.random()<0.7?1:2)*(up?1:-1);
-        let np=clamp(p+st); if(np===p){ st=-st; np=clamp(p+st); } p=np; } }                 // bounce off register edges
+        let np=cl(p+st); if(np===p){ st=-st; np=cl(p+st); } p=np; } }                       // move within the cell's directional range
     notes[notes.length-1]={idx:asmaSnap(p),du:1.6+Math.random()*0.6}; return notes;
   }
 
@@ -378,7 +381,7 @@ function generateArc(m){
      (each heard exactly twice, never 3x); the opening trio A B C returns, and the F G pair comes
      back at the end. Cells are generated fresh each time; only the arrangement is fixed. */
   const STRUCT=['A','B','C','D','A','B','C','E','F','G','H','I','H','J','F','G'];
-  const spec={ A:[8,0,0], B:[8,1,1], C:[12,Math.min(N-2,guclu),0], D:[4,0,-1], E:[26,guclu,1],
+  const spec={ A:[8,0,1.4], B:[8,2,1.2], C:[12,Math.min(N-2,guclu),0], D:[4,2,-1], E:[26,guclu,1],
                F:[22,guclu,0], G:[40,N-2,1], H:[6,N-1,0], I:[6,N-2,-1], J:[28,N-2,-1] };
   const cells={}; for(const k in spec){ const [ln,an,db]=spec[k]; cells[k]=makeCell(ln,clamp(an),db); }
   let cur=1; const ns=STRUCT.length;
