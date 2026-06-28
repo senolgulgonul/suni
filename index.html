@@ -91,8 +91,8 @@
 <body>
 <div class="wrap">
   <header>
-    <h1>Sun’î<span class="dot">makam taksim · fretless guitar</span><span class="ver" id="ver">v3.39</span></h1>
-    <p>Sun’î improvises taksims over the 13 basic makams of Turkish music. The generation is random, yet the <b>seyir</b> (melodic
+    <h1>Sun’î<span class="dot">makam taksim · fretless guitar</span><span class="ver" id="ver">v3.40</span></h1>
+    <p>Sun’î improvises taksims over example makams of Turkish music. The generation is random, yet the <b>seyir</b> (melodic
        direction) and the pull toward the <b>güçlü</b> (dominant) and <b>karar</b> (final) are fixed,
        so every run is different but recognizably the same makam. Pitches come from the AEU 53-comma
        system and are voiced with true microtones. Try <b>Hicaz</b>, then <b>Uzzal</b>: identical
@@ -145,7 +145,7 @@
 
 <script>
 "use strict";
-const APP_VERSION = "3.39";
+const APP_VERSION = "3.40";
 const TRANSPOSE = 0.5;           // playback register (down an octave for a warm range)
 const GTR_LP    = 6000;          // bus lowpass (lower this if the guitar is too tiz)
 const GTR_BODY  = 1.5;           // light body low-shelf (dB)
@@ -260,6 +260,12 @@ const MAKAMLAR = {
     perde:["Rast","Dügâh","Segâh","Çârgâh","Neva","Hisar","Eviç","Gerdaniye"],
     guclu:4, asma:[4,2], yeden:-4,
     formula:"Rast pentachord + Hicaz tetrachord on Neva"
+  },
+  "Nikriz": {
+    durak:294, seyir:"cikici", steps:[9,5,12,5,9,8,5],
+    perde:["Rast","Dügâh","Dik Kürdi","Nim Hicaz","Neva","Hüseyni","Eviç","Gerdaniye"],
+    guclu:4, asma:[4,3,1], yeden:-4, tiz:2, pes:1,
+    formula:"Nikriz pentachord (tanini + Hicaz tetrachord) + Rast tetrachord · dominant Neva"
   },
   "Segah": {
     durak:330, seyir:"cikici", steps:[5,9,9,8,5,9,8],
