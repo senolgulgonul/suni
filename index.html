@@ -91,7 +91,7 @@
 <body>
 <div class="wrap">
   <header>
-    <h1>Sun’î<span class="dot">makam taksim · fretless guitar</span><span class="ver" id="ver">v3.20</span></h1>
+    <h1>Sun’î<span class="dot">makam taksim · fretless guitar</span><span class="ver" id="ver">v3.39</span></h1>
     <p>Sun’î improvises taksims over the 13 basic makams of Turkish music. The generation is random, yet the <b>seyir</b> (melodic
        direction) and the pull toward the <b>güçlü</b> (dominant) and <b>karar</b> (final) are fixed,
        so every run is different but recognizably the same makam. Pitches come from the AEU 53-comma
@@ -145,13 +145,17 @@
 
 <script>
 "use strict";
-const APP_VERSION = "3.20";
+const APP_VERSION = "3.39";
 const TRANSPOSE = 0.5;           // playback register (down an octave for a warm range)
 const GTR_LP    = 6000;          // bus lowpass (lower this if the guitar is too tiz)
 const GTR_BODY  = 1.5;           // light body low-shelf (dB)
 const REF_SHIFT = 1.0;           // reference (sample) piece pitch; 1.0 = exact original pitch
-const REVERB_RT = 1.8;           // reverb decay (s), measured from the recording (~RT60)
-const REVERB_WET = 0.20;         // reverb amount; lower = drier
+const REVERB_RT = 3.3;           // reverb decay (s); set from Yorgo Hicaz (RT60-like ~5s, tamed to 3.3 to avoid wash)
+const REVERB_WET = 0.24;         // reverb amount; lower = drier
+const GTR_RING_BASE = 0.9;       // note decay/ring: base seconds (raise for more legato, smoother transitions)
+const GTR_RING_MUL  = 2.4;       //   + this * note-duration
+const GTR_RING_MAX  = 1.9;       //   capped near the sample length
+const GTR_ATTACK    = 0.012;     // attack ramp (s); longer = softer pluck, less obvious note edges
 
 /* Default piece = a phrase transcribed from the reference oud recording (untitled6,
    31.6-43.2 s, between two rests). Absolute hz pitches, durations in beats at 112 bpm,
@@ -218,7 +222,7 @@ const MAKAMLAR = {
   "Hümayun": {
     durak:294, seyir:"inici-cikici", steps:[5,12,5,9,4,9,9],
     perde:["Dügâh","Dik Kürdi","Nim Hicaz","Neva","Hüseyni","Acem","Gerdaniye","Muhayyer"],
-    guclu:3, asma:[3,2], yeden:-9,
+    guclu:3, asma:[3,2], yeden:-9, tiz:3, pes:0,    // Hicaz: climbs above the octave (tiz)
     formula:"Hicaz tetrachord + Buselik pentachord (hicaz family)"
   },
   "Hicaz": {
@@ -242,7 +246,7 @@ const MAKAMLAR = {
   "Hüseyni": {
     durak:294, seyir:"cikici", steps:[8,5,9,9,8,5,9],
     perde:["Dügâh","Segâh","Çârgâh","Neva","Hüseyni","Eviç","Gerdaniye","Muhayyer"],
-    guclu:4, asma:[4,3,1], yeden:-9,
+    guclu:4, asma:[4,3,1], yeden:-9, tiz:0, pes:2,  // Hüseyni: stays in the home octave, explores below the durak
     formula:"Hüseyni pentachord + Uşşak tetrachord · dominant Hüseyni"
   },
   "Karcığar": {
@@ -266,6 +270,7 @@ const MAKAMLAR = {
 };
 
 function offsets(m){ const o=[0]; for(const s of m.steps) o.push(o[o.length-1]+s); return o; }
+function komaIdx(off,e){ const P=off.length-1; return 53*Math.floor(e/P)+off[((e%P)+P)%P]; }   // extended degree -> commas (pes/tiz octaves)
 const koma2hz = (durak,k)=> durak*Math.pow(2,k/53);
 
 /* ---------- Generator: seyir-aware weighted random walk ---------- */
@@ -289,7 +294,7 @@ function generate(m){
       let w = [0.18,1.0,0.5,0.13][d] ?? 0.03;
       const want = Math.sign(target-cur)*0.7 + dirGlobal*0.5;
       if(want!==0 && j!==cur) w *= 1 + 0.9*Math.max(0,Math.sign(j-cur)*Math.sign(want));
-      if(progress<0.6 && j===guclu) w*=1.6;
+      if(progress<0.5 && j===guclu && target===guclu) w*=1.4;
       if(m.asma.includes(j)) w*=1.25;
       if(progress>0.7) w *= 1 + 2.4*progress*(1/(1+Math.abs(j-target)));
       if(j===cur) w*=0.4;
@@ -312,20 +317,77 @@ function generate(m){
       seq.push({idx:-1, dur:0.4+Math.random()*0.3});              // yeden, quick
       seq.push({idx:0,  dur:2.2});                                 // durak, final hold
     } else {
-      const half = (p===0 || Math.random()<0.5);
-      const target = half ? guclu : rnd(m.asma);
-      const len = 9+Math.floor(Math.random()*8);                  // long oud run (9-16 notes)
+      // legitimate resting perdes (durak + asma karar); phrases rest only on these or the tiz peak
+      const rest     = Array.from(new Set([0, ...m.asma]));
+      const lowRest  = rest.filter(x=>x<=guclu);
+      const highRest = rest.filter(x=>x> guclu);
+      let target, half=false;
+      if(p===0){ target = guclu; half=true; }                          // open with a half-cadence on the güçlü
+      else {
+        const r=Math.random();
+        if(r<0.34)      target = (highRest.length && Math.random()<0.5) ? rnd(highRest) : N-1; // tiz peak / high rest
+        else if(r<0.60){ target = guclu; half=true; }                                         // half-cadence on the güçlü
+        else            target = rnd(lowRest.length?lowRest:[0]);                              // rest near the karar
+      }
+      const len = 9+Math.floor(Math.random()*8);                  // long run (9-16 notes)
       for(let k=0;k<len;k++){
         const idx=step(target,k/len);
         const r=Math.random();
-        let d = r<0.62?0.25 : r<0.88?0.5 : 1;                     // mostly sixteenths (IOI ~0.13s @112)
+        let d = r<0.62?0.25 : r<0.88?0.5 : 1;                     // mostly sixteenths
         d *= 0.85+Math.random()*0.3;                              // rubato jitter
         seq.push({idx, dur:d});
       }
       cur=target;
-      seq[seq.length-1]={idx:target, dur:1.2+Math.random()*0.6};  // brief breath/hold at asma
+      const holdDur = half ? 1.8+Math.random()*0.8 : 1.2+Math.random()*0.6;   // clearer pause on a half-cadence
+      seq[seq.length-1]={idx:target, dur:holdDur};                 // rest on a legitimate perde
     }
   }
+  return seq;
+}
+
+/* ---------- Long-form taksim: one ~3 min piece with a dramatic arc ----------
+   Low, slow intro -> build toward the güçlü -> tiz (high) climax around 60-70% ->
+   descent and a yeden->durak close. Short breaths (rests) sit between phrases.
+   Modelled on the register/intensity arc measured from a Yorgo Bacanos Hicaz taksim. */
+function generateArc(m){
+  const N=m.perde.length, P=N-1, guclu=m.guclu, karar=0;
+  const tiz = m.tiz ?? (m.seyir==="cikici"?1:m.seyir==="inici-cikici"?3:2);
+  const pes = m.pes ?? (m.seyir==="cikici"?2:m.seyir==="inici-cikici"?1:0);
+  const TOP=N-1+tiz, BOT=-pes;
+  const seq=[]; const beat=60/(+elTempo.value);
+  const rest=Array.from(new Set([0,...m.asma]));
+  const clamp=e=>Math.max(BOT,Math.min(TOP,e));
+  const asmaSnap=e=>{ for(const o of [0,1,-1]){ const c=e+o, ff=((c%P)+P)%P; if(rest.includes(ff)) return clamp(c); } return clamp(e); };
+
+  function makeCell(nN,anchor,dirBias){                                        // a fresh makam phrase (own contour, ends on a rest perde)
+    const notes=[]; let p=clamp(anchor);
+    for(let i=0;i<nN;i++){ const r=Math.random(); const du=r<0.45?0.5:r<0.75?0.75:1.0; notes.push({idx:p,du});
+      if(i<nN-1){ const up=Math.random()<(0.5+0.28*dirBias); const st=(Math.random()<0.7?1:2)*(up?1:-1); p=clamp(p+st); } }
+    notes[notes.length-1]={idx:asmaSnap(p),du:1.6+Math.random()*0.6}; return notes;
+  }
+
+  /* Fixed repeat skeleton: 10 distinct cells A..J arranged over a 16-slot order. 6 cells recur
+     (each heard exactly twice, never 3x); the opening trio A B C returns, and the F G pair comes
+     back at the end. Cells are generated fresh each time; only the arrangement is fixed. */
+  const STRUCT=['A','B','C','D','A','B','C','E','F','G','H','I','H','J','F','G'];
+  const spec={ A:[8,0,0], B:[8,1,1], C:[12,Math.min(N-2,guclu),0], D:[4,0,-1], E:[26,guclu,1],
+               F:[22,guclu,0], G:[40,N-2,1], H:[6,N-1,0], I:[6,N-2,-1], J:[28,N-2,-1] };
+  const cells={}; for(const k in spec){ const [ln,an,db]=spec[k]; cells[k]=makeCell(ln,clamp(an),db); }
+  let cur=1; const ns=STRUCT.length;
+  function playCell(cell,g){
+    const rubAmp=0.15+Math.random()*0.1; let rp=Math.random()*Math.PI;
+    const rub=()=>(1+rubAmp*Math.sin(rp+=0.5))*(0.92+Math.random()*0.14); const T=cell.length;
+    cell.forEach((nn,i)=>{ const vel=Math.max(0.24,Math.min(1,g*(i>T-2?0.7:1))); seq.push({idx:nn.idx,dur:Math.max(0.12,nn.du*rub()),vel}); });
+    cur=cell[T-1].idx;
+  }
+  function breath(g){ seq.push({idx:clamp(rnd([0,1])),dur:1.6+Math.random()*0.4,vel:Math.max(0.18,(g||0.6)*0.3)}); seq.push({rest:true,dur:0.3}); }
+  const SECT=new Set([3,7,9,13]);                                              // section breaths
+  STRUCT.forEach((k,si)=>{ const a=si/(ns-1); const shape=a<0.62?a/0.62:1-(a-0.62)/0.38; const g=0.58+0.4*shape;
+    playCell(cells[k],g); if(si<ns-1 && SECT.has(si)) breath(g); });
+  const clen=8+Math.floor(Math.random()*4); let cp=cur;                        // closing descent to the durak
+  for(let k=0;k<clen;k++){ cp=(cp===karar)?karar:clamp(cp+Math.sign(karar-cp)); const r=Math.random(); let d=(k===0)?0.7:(r<0.7?0.25:r<0.9?0.5:0.75); d*=0.9+Math.random()*0.2; seq.push({idx:cp,dur:d,vel:Math.max(0.28,0.74-(k/Math.max(1,clen-1))*0.4)}); }
+  seq.push({idx:-1,dur:0.5,vel:0.4});
+  seq.push({idx:0,dur:3.2,vel:0.5});
   return seq;
 }
 
@@ -388,13 +450,20 @@ function pickSample(f){
 function playOud(notes){
   const bus = voiceBus || master;
   notes.forEach(nt=>{
-    const ring=Math.min(0.5+nt.dur*1.6, 2.0);
+    const ring=Math.min(GTR_RING_BASE+nt.dur*GTR_RING_MUL, GTR_RING_MAX);
     const {buf,rate}=pickSample(nt.f);
-    const src=AC.createBufferSource(); src.buffer=buf; src.playbackRate.value=rate;
+    const src=AC.createBufferSource(); src.buffer=buf;
+    if(nt.gliss){ const from=rate*Math.pow(2,-(nt.gliss)/1200);
+      src.playbackRate.setValueAtTime(from, nt.t);
+      src.playbackRate.linearRampToValueAtTime(rate, nt.t+Math.min(0.1, ring*0.5)); }   // fretless slide-in
+    else src.playbackRate.setValueAtTime(rate, nt.t);
+    if(nt.vib){ const lfo=AC.createOscillator(); lfo.type="sine"; lfo.frequency.value=5+Math.random()*1.5;
+      const lg=AC.createGain(); lg.gain.value=rate*0.011; lfo.connect(lg); lg.connect(src.playbackRate);
+      lfo.start(nt.t+0.15); lfo.stop(nt.t+ring); activeSrc.push(lfo); }                  // vibrato LFO
     const g=AC.createGain();
-    const amp=0.42+Math.random()*0.10;                 // slight dynamic variation per pluck
+    const amp=(0.30+0.34*(nt.vel==null?0.7:nt.vel))*(0.94+Math.random()*0.12);  // dynamics (velocity)
     g.gain.setValueAtTime(0.0001, nt.t);
-    g.gain.linearRampToValueAtTime(amp, nt.t+0.003);   // 3 ms attack (keep sample attack)
+    g.gain.linearRampToValueAtTime(amp, nt.t+GTR_ATTACK);   // softer attack blends note-to-note transitions
     g.gain.setValueAtTime(amp, Math.max(nt.t+0.01, nt.t+ring-0.06));
     g.gain.linearRampToValueAtTime(0.0001, nt.t+ring); // end fade
     src.connect(g); g.connect(bus);
@@ -469,7 +538,7 @@ function drawSeq(m){
   });
 }
 
-function freshSeq(rename){ const m=MAKAMLAR[curName]; seq=generate(m); drawSeq(m); if(rename) pname.value=genName(curName); }
+function freshSeq(rename){ const m=MAKAMLAR[curName]; seq=generateArc(m); drawSeq(m); if(rename) pname.value=genName(curName); }
 function load(){ const m=MAKAMLAR[curName]; drawRibbon(m); drawMeta(m); freshSeq(true); }
 
 function clearTimers(){ timers.forEach(t=>clearTimeout(t)); timers=[]; }
@@ -495,16 +564,17 @@ async function play(){
 }
 function scheduleCycle(token, useCurrent){
   if(!playing || token!==playToken) return;
-  const m=MAKAMLAR[curName], off=offsets(m), beat=60/(+elTempo.value);
-  if(!useCurrent){ seq=generate(m); drawSeq(m); }  // a fresh taksim for each new cycle
+  const m=MAKAMLAR[curName], off=offsets(m), beat=60/(+elTempo.value), N=m.perde.length;
+  if(!useCurrent){ seq=generateArc(m); }            // a fresh ~3 min arc for each new cycle
 
   const notes=[]; let t=AC.currentTime+0.08;
   seq.forEach((s,i)=>{
     const dur=s.dur*beat;
+    if(s.rest){ t+=dur; return; }                  // breath between phrases (silence)
     let f, idx;
     if(s.hz!=null){ f=s.hz*REF_SHIFT; idx=refInfo(s.hz,m).idx; }
-    else { const k = s.idx===-1 ? m.yeden : off[s.idx]; f=koma2hz(m.durak,k)*TRANSPOSE; idx=s.idx; }
-    notes.push({ f, dur, t, idx, i });
+    else { const k = s.idx===-1 ? m.yeden : komaIdx(off,s.idx); f=koma2hz(m.durak,k)*TRANSPOSE; idx = s.idx===-1?-1:((s.idx>=0&&s.idx<=N-1)?s.idx:(((s.idx%(N-1))+(N-1))%(N-1))); }
+    notes.push({ f, dur, t, idx, i, vel:s.vel, gliss:s.gliss, vib:s.vib });
     t+=dur;
   });
   const endT=t;
@@ -514,7 +584,7 @@ function scheduleCycle(token, useCurrent){
     timers.push(setTimeout(()=>{ if(token===playToken){ litSeq(nt.i); litRibbon(nt.idx==null||nt.idx<0?-1:nt.idx); } },
       Math.max(0,(nt.t-AC.currentTime)*1000)));
   });
-  const gap=0.35;                                  // short breath between phrases
+  const gap=0.8;                                   // breath before the next taksim
   timers.push(setTimeout(()=>{ scheduleCycle(token, false); }, (endT-AC.currentTime)*1000 + gap*1000));
 }
 function stop(){ playing=false; btnPlay.textContent="Play"; playToken++; stopAudioNow(); litSeq(-2); litRibbon(-2); }
@@ -552,14 +622,15 @@ fileInput.onchange=e=>{
 
 /* ---------- Export: render the current piece to a mono WAV (offline, no recording needed) ---------- */
 function resolveNotes(){
-  const m=MAKAMLAR[curName], off=offsets(m), beat=60/(+elTempo.value);
+  const m=MAKAMLAR[curName], off=offsets(m), beat=60/(+elTempo.value), N=m.perde.length;
   const notes=[]; let t=0;
   seq.forEach(s=>{
     const dur=s.dur*beat;
+    if(s.rest){ t+=dur; return; }
     let f;
     if(s.hz!=null) f=s.hz*REF_SHIFT;
-    else { const k=s.idx===-1?m.yeden:off[s.idx]; f=koma2hz(m.durak,k)*TRANSPOSE; }
-    notes.push({f,dur,t}); t+=dur;
+    else { const k=s.idx===-1?m.yeden:komaIdx(off,s.idx); f=koma2hz(m.durak,k)*TRANSPOSE; }
+    notes.push({f,dur,t,vel:s.vel,gliss:s.gliss,vib:s.vib}); t+=dur;
   });
   return {notes, total:t};
 }
@@ -592,12 +663,19 @@ async function exportWAV(){
   const wet=ctx.createGain(); wet.gain.value=REVERB_WET;
   lp.connect(rev); rev.connect(wet); wet.connect(comp);
   notes.forEach(nt=>{
-    const ring=Math.min(0.5+nt.dur*1.6,2.0);
+    const ring=Math.min(GTR_RING_BASE+nt.dur*GTR_RING_MUL,GTR_RING_MAX);
     const {buf,rate}=pickSample(nt.f);
-    const src=ctx.createBufferSource(); src.buffer=buf; src.playbackRate.value=rate;
-    const g=ctx.createGain(); const amp=0.42+Math.random()*0.10;
+    const src=ctx.createBufferSource(); src.buffer=buf;
+    if(nt.gliss){ const from=rate*Math.pow(2,-(nt.gliss)/1200);
+      src.playbackRate.setValueAtTime(from,nt.t);
+      src.playbackRate.linearRampToValueAtTime(rate,nt.t+Math.min(0.1,ring*0.5)); }
+    else src.playbackRate.setValueAtTime(rate,nt.t);
+    if(nt.vib){ const lfo=ctx.createOscillator(); lfo.type="sine"; lfo.frequency.value=5+Math.random()*1.5;
+      const lg=ctx.createGain(); lg.gain.value=rate*0.011; lfo.connect(lg); lg.connect(src.playbackRate);
+      lfo.start(nt.t+0.15); lfo.stop(nt.t+ring); }
+    const g=ctx.createGain(); const amp=(0.30+0.34*(nt.vel==null?0.7:nt.vel))*(0.94+Math.random()*0.12);
     g.gain.setValueAtTime(0.0001,nt.t);
-    g.gain.linearRampToValueAtTime(amp,nt.t+0.003);
+    g.gain.linearRampToValueAtTime(amp,nt.t+GTR_ATTACK);
     g.gain.setValueAtTime(amp,Math.max(nt.t+0.01,nt.t+ring-0.06));
     g.gain.linearRampToValueAtTime(0.0001,nt.t+ring);
     src.connect(g); g.connect(master);
