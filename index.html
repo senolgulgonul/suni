@@ -91,7 +91,7 @@
 <body>
 <div class="wrap">
   <header>
-    <h1>Sun’î<span class="dot">makam taksim · fretless guitar</span><span class="ver" id="ver">v3.44</span></h1>
+    <h1>Sun’î<span class="dot">makam taksim · fretless guitar</span><span class="ver" id="ver">v3.47</span></h1>
     <p>Sun’î improvises taksims over example makams of Turkish music. The generation is random, yet the <b>seyir</b> (melodic
        direction) and the pull toward the <b>güçlü</b> (dominant) and <b>karar</b> (final) are fixed,
        so every run is different but recognizably the same makam. Pitches come from the AEU 53-comma
@@ -146,7 +146,7 @@
 
 <script>
 "use strict";
-const APP_VERSION = "3.44";
+const APP_VERSION = "3.47";
 const TRANSPOSE = 0.5;           // playback register (down an octave for a warm range)
 const GTR_LP    = 6000;          // bus lowpass (lower this if the guitar is too tiz)
 const GTR_BODY  = 1.5;           // light body low-shelf (dB)
@@ -366,14 +366,23 @@ function generateArc(m){
   const clamp=e=>Math.max(BOT,Math.min(TOP,e));
   const asmaSnap=e=>{ for(const o of [0,1,-1]){ const c=e+o, ff=((c%P)+P)%P; if(rest.includes(ff)) return clamp(c); } return clamp(e); };
 
-  function makeCell(nN,anchor,dirBias){                                        // a fresh makam phrase; directional cells move away from their anchor (ascend / descend)
-    const lo = dirBias>0 ? Math.max(BOT,anchor) : BOT;
-    const hi = dirBias<0 ? Math.min(TOP,anchor) : TOP;
-    const cl = e=>Math.max(lo,Math.min(hi,e));
-    const notes=[]; let p=cl(anchor);
+  function makeCell(nN,anchor,dirBias){                                        // a fresh makam phrase shaped as an arch: rise to a peak, then return (no sticking at register edges)
+    const notes=[];
+    const span = 3+Math.floor(Math.random()*4);                              // how far this cell reaches from its anchor (3..6 perdes)
+    const peak = dirBias>0 ? clamp(anchor+span)                              // ascending cell: peak above anchor
+               : dirBias<0 ? clamp(anchor-span)                              // descending cell: trough below anchor
+               : clamp(anchor + (Math.random()<0.5?span:-span));            // neutral: arch either way
+    let p=clamp(anchor), pp=null;
     for(let i=0;i<nN;i++){ const r=Math.random(); const du=r<0.45?0.5:r<0.75?0.75:1.0; notes.push({idx:p,du});
-      if(i<nN-1){ const up=Math.random()<(0.5+0.28*dirBias); let st=(Math.random()<0.7?1:2)*(up?1:-1);
-        let np=cl(p+st); if(np===p){ st=-st; np=cl(p+st); } p=np; } }                       // move within the cell's directional range
+      if(i<nN-1){ const frac=i/(nN-1);
+        const tgt = frac<0.5 ? clamp(anchor + Math.round((peak-anchor)*(frac*2)))         // first half: drift toward the peak
+                             : clamp(peak   + Math.round((anchor-peak)*((frac-0.5)*2)));   // second half: drift back toward the anchor
+        let dir = Math.sign(tgt-p); if(dir===0) dir = Math.random()<0.5?1:-1;
+        if(Math.random()<0.22) dir=-dir;                                                   // small wiggle around the line
+        let st=(Math.random()<0.7?1:2)*dir;
+        let np=clamp(p+st); if(np===p){ np=clamp(p-st); }                                  // do not stall at an edge
+        if(np===pp && np!==p){ const td=Math.sign(tgt-p)||dir; const np2=clamp(p+td*(Math.random()<0.5?1:2)); if(np2!==p&&np2!==pp) np=np2; }   // avoid A-B-A oscillation
+        pp=p; p=np; } }
     notes[notes.length-1]={idx:asmaSnap(p),du:1.6+Math.random()*0.6}; return notes;
   }
 
@@ -400,9 +409,11 @@ function generateArc(m){
     seq.push({idx:cp,dur:d,vel:Math.max(0.28,0.74-(kk/dn)*0.4)}); kk++; }
   seq.push({idx:-1,dur:0.5,vel:0.4});                                          // yeden
   seq.push({idx:0,dur:3.2,vel:0.5});                                          // final durak
-  let rc=1, last=null;                                                        // safety: same perde attacked at most twice in a row (rests don't reset the count)
+  let p1=null,p2=null,p3=null,p4=null;                                        // post-pass: at most two of the same perde in a row, and at most an a-b-a-b oscillation (rests ignored)
   for(let i=0;i<seq.length;i++){ const a=seq[i]; if(a.rest||a.idx==null) continue;
-    if(a.idx===last){ if(++rc>2){ a.idx=clamp(a.idx+(a.idx>=TOP?-1:1)); rc=1; } } else rc=1; last=a.idx; }
+    if(a.idx===p1 && p1===p2){ a.idx=clamp(a.idx+(a.idx>=TOP?-1:1)); }                                       // no 3rd identical perde in a row (pairs allowed)
+    if(a.idx===p2 && p1===p3 && p2===p4 && a.idx!==p1){ for(const d of [1,-1,2,-2]){ const c=clamp(a.idx+d); if(c!==p1 && c!==p2){ a.idx=c; break; } } }   // 5th note of an oscillation -> nudge away
+    p4=p3; p3=p2; p2=p1; p1=a.idx; }
   return seq;
 }
 
