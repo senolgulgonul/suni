@@ -91,7 +91,7 @@
 <body>
 <div class="wrap">
   <header>
-    <h1>Sun’î<span class="dot">makam taksim · fretless guitar</span><span class="ver" id="ver">v3.47</span></h1>
+    <h1>Sun’î<span class="dot">makam taksim · fretless guitar</span><span class="ver" id="ver">v3.50</span></h1>
     <p>Sun’î improvises taksims over example makams of Turkish music. The generation is random, yet the <b>seyir</b> (melodic
        direction) and the pull toward the <b>güçlü</b> (dominant) and <b>karar</b> (final) are fixed,
        so every run is different but recognizably the same makam. Pitches come from the AEU 53-comma
@@ -106,8 +106,8 @@
       <select id="makam"></select>
     </div>
     <div class="ctl">
-      <label for="tempo">Tempo <span class="tempo-val" id="tval">112</span></label>
-      <input type="range" id="tempo" min="48" max="144" value="112">
+      <label for="tempo">Tempo <span class="tempo-val" id="tval">88</span></label>
+      <input type="range" id="tempo" min="48" max="144" value="88">
     </div>
     <div class="btns">
       <button id="gen">New</button>
@@ -146,7 +146,7 @@
 
 <script>
 "use strict";
-const APP_VERSION = "3.47";
+const APP_VERSION = "3.50";
 const TRANSPOSE = 0.5;           // playback register (down an octave for a warm range)
 const GTR_LP    = 6000;          // bus lowpass (lower this if the guitar is too tiz)
 const GTR_BODY  = 1.5;           // light body low-shelf (dB)
@@ -366,14 +366,16 @@ function generateArc(m){
   const clamp=e=>Math.max(BOT,Math.min(TOP,e));
   const asmaSnap=e=>{ for(const o of [0,1,-1]){ const c=e+o, ff=((c%P)+P)%P; if(rest.includes(ff)) return clamp(c); } return clamp(e); };
 
-  function makeCell(nN,anchor,dirBias){                                        // a fresh makam phrase shaped as an arch: rise to a peak, then return (no sticking at register edges)
+  function makeCell(nN,anchor,dirBias,rhythm){                                 // a fresh makam phrase: arch contour + a rhythmic character (fast runs / lyric holds / flow)
+    const RH={ fast:[0.25,0.25,0.25,0.25,0.5,0.25], flow:[0.25,0.25,0.5,0.25,0.5,0.25], lyric:[1.0,0.75,1.5,1.0,0.5,0.75] };
+    const pal=RH[rhythm]||RH.flow;
     const notes=[];
     const span = 3+Math.floor(Math.random()*4);                              // how far this cell reaches from its anchor (3..6 perdes)
     const peak = dirBias>0 ? clamp(anchor+span)                              // ascending cell: peak above anchor
                : dirBias<0 ? clamp(anchor-span)                              // descending cell: trough below anchor
                : clamp(anchor + (Math.random()<0.5?span:-span));            // neutral: arch either way
     let p=clamp(anchor), pp=null;
-    for(let i=0;i<nN;i++){ const r=Math.random(); const du=r<0.45?0.5:r<0.75?0.75:1.0; notes.push({idx:p,du});
+    for(let i=0;i<nN;i++){ const du=rnd(pal); notes.push({idx:p,du});
       if(i<nN-1){ const frac=i/(nN-1);
         const tgt = frac<0.5 ? clamp(anchor + Math.round((peak-anchor)*(frac*2)))         // first half: drift toward the peak
                              : clamp(peak   + Math.round((anchor-peak)*((frac-0.5)*2)));   // second half: drift back toward the anchor
@@ -390,30 +392,35 @@ function generateArc(m){
      (each heard exactly twice, never 3x); the opening trio A B C returns, and the F G pair comes
      back at the end. Cells are generated fresh each time; only the arrangement is fixed. */
   const STRUCT=['A','B','C','D','A','B','C','E','F','G','H','I','H','J','F','G'];
-  const spec={ A:[8,0,1.4], B:[8,2,1.2], C:[12,Math.min(N-2,guclu),0], D:[4,2,-1], E:[26,guclu,1],
-               F:[22,guclu,0], G:[40,N-2,1], H:[6,N-1,0], I:[6,N-2,-1], J:[28,N-2,-1] };
-  const cells={}; for(const k in spec){ const [ln,an,db]=spec[k]; cells[k]=makeCell(ln,clamp(an),db); }
+  const spec={ A:[8,0,1.4,"flow"], B:[8,2,1.2,"fast"], C:[12,Math.min(N-2,guclu),0,"flow"], D:[4,2,-1,"lyric"], E:[26,guclu,1,"fast"],
+               F:[22,guclu,0,"flow"], G:[40,N-2,1,"fast"], H:[6,N-1,0,"lyric"], I:[6,N-2,-1,"lyric"], J:[28,N-2,-1,"flow"] };
+  const cells={}; for(const k in spec){ const [ln,an,db,rh]=spec[k]; cells[k]=makeCell(ln,clamp(an),db,rh); }
   let cur=1; const ns=STRUCT.length;
-  function playCell(cell,g){
+  function playCell(cell,g,dscale){
     const rubAmp=0.15+Math.random()*0.1; let rp=Math.random()*Math.PI;
-    const rub=()=>(1+rubAmp*Math.sin(rp+=0.5))*(0.92+Math.random()*0.14); const T=cell.length;
-    cell.forEach((nn,i)=>{ const vel=Math.max(0.24,Math.min(1,g*(i>T-2?0.7:1))); seq.push({idx:nn.idx,dur:Math.max(0.12,nn.du*rub()),vel}); });
+    const rub=()=>(1+rubAmp*Math.sin(rp+=0.5))*(0.92+Math.random()*0.14); const T=cell.length; const ds=dscale||1;
+    cell.forEach((nn,i)=>{ const vel=Math.max(0.24,Math.min(1,g*(i>T-2?0.7:1))); seq.push({idx:nn.idx,dur:Math.max(0.12,nn.du*rub()*ds),vel}); });
     cur=cell[T-1].idx;
   }
   function breath(g){ seq.push({idx:clamp(rnd([0,1])),dur:1.6+Math.random()*0.4,vel:Math.max(0.18,(g||0.6)*0.3)}); seq.push({rest:true,dur:0.3}); }
   const SECT=new Set([3,7,9,13]);                                              // section breaths
+  const ritimArc = Math.random()<0.65;                                         // most pieces quicken early and breathe later; some stay uniform (peşrev-like)
   STRUCT.forEach((k,si)=>{ const a=si/(ns-1); const shape=a<0.62?a/0.62:1-(a-0.62)/0.38; const g=0.58+0.4*shape;
-    playCell(cells[k],g); if(si<ns-1 && SECT.has(si)) breath(g); });
+    const dscale = ritimArc ? (0.88+0.30*a) : 1;                              // dense/quick early -> spacious/lyric late
+    playCell(cells[k],g,dscale); if(si<ns-1 && SECT.has(si)) breath(g); });
   let cp=cur; const dn=Math.max(1,Math.abs(cp-karar)); let kk=0;                // closing: step down to the durak, one distinct perde at a time
   while(cp!==karar){ cp+=Math.sign(karar-cp); const r=Math.random(); const d=((kk===0?0.7:(r<0.7?0.25:r<0.9?0.5:0.75)))*(0.9+Math.random()*0.2);
     seq.push({idx:cp,dur:d,vel:Math.max(0.28,0.74-(kk/dn)*0.4)}); kk++; }
   seq.push({idx:-1,dur:0.5,vel:0.4});                                          // yeden
   seq.push({idx:0,dur:3.2,vel:0.5});                                          // final durak
-  let p1=null,p2=null,p3=null,p4=null;                                        // post-pass: at most two of the same perde in a row, and at most an a-b-a-b oscillation (rests ignored)
+  const MAX_SAME=3, MAX_ALT=6; const hist=[];                                  // post-pass: up to 3 identical perdes in a row, and up to a 6-note a-b-a-b-a-b oscillation (matches Tatyos practice)
   for(let i=0;i<seq.length;i++){ const a=seq[i]; if(a.rest||a.idx==null) continue;
-    if(a.idx===p1 && p1===p2){ a.idx=clamp(a.idx+(a.idx>=TOP?-1:1)); }                                       // no 3rd identical perde in a row (pairs allowed)
-    if(a.idx===p2 && p1===p3 && p2===p4 && a.idx!==p1){ for(const d of [1,-1,2,-2]){ const c=clamp(a.idx+d); if(c!==p1 && c!==p2){ a.idx=c; break; } } }   // 5th note of an oscillation -> nudge away
-    p4=p3; p3=p2; p2=p1; p1=a.idx; }
+    let same=1; for(let q=hist.length-1;q>=0 && hist[q]===a.idx;q--) same++;
+    if(same>MAX_SAME) a.idx=clamp(a.idx+(a.idx>=TOP?-1:1));
+    let alt=1; if(hist.length){ const last=hist[hist.length-1];
+      if(last!==a.idx){ alt=2; let expect=a.idx, q=hist.length-2; while(q>=0 && hist[q]===expect){ alt++; expect=(expect===a.idx)?last:a.idx; q--; } } }
+    if(alt>MAX_ALT){ const p2v=hist.length>=2?hist[hist.length-2]:null; for(const d of [1,-1,2,-2]){ const c=clamp(a.idx+d); if(c!==hist[hist.length-1] && c!==p2v){ a.idx=c; break; } } }
+    hist.push(a.idx); }
   return seq;
 }
 
