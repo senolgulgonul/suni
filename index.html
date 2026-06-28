@@ -91,7 +91,7 @@
 <body>
 <div class="wrap">
   <header>
-    <h1>Sun’î<span class="dot">makam taksim · fretless guitar</span><span class="ver" id="ver">v3.50</span></h1>
+    <h1>Sun’î<span class="dot">makam taksim · fretless guitar</span><span class="ver" id="ver">v3.51</span></h1>
     <p>Sun’î improvises taksims over example makams of Turkish music. The generation is random, yet the <b>seyir</b> (melodic
        direction) and the pull toward the <b>güçlü</b> (dominant) and <b>karar</b> (final) are fixed,
        so every run is different but recognizably the same makam. Pitches come from the AEU 53-comma
@@ -106,8 +106,8 @@
       <select id="makam"></select>
     </div>
     <div class="ctl">
-      <label for="tempo">Tempo <span class="tempo-val" id="tval">88</span></label>
-      <input type="range" id="tempo" min="48" max="144" value="88">
+      <label for="tempo">Tempo <span class="tempo-val" id="tval">72</span></label>
+      <input type="range" id="tempo" min="48" max="144" value="72">
     </div>
     <div class="btns">
       <button id="gen">New</button>
@@ -146,7 +146,7 @@
 
 <script>
 "use strict";
-const APP_VERSION = "3.50";
+const APP_VERSION = "3.51";
 const TRANSPOSE = 0.5;           // playback register (down an octave for a warm range)
 const GTR_LP    = 6000;          // bus lowpass (lower this if the guitar is too tiz)
 const GTR_BODY  = 1.5;           // light body low-shelf (dB)
