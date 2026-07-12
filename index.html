@@ -134,17 +134,19 @@
     <div class="ribbon" id="ribbon"></div>
   </div>
 
+  <div class="seq" id="seq"></div>
 
   <footer>
     <div>Green = güçlü (dominant / half-cadence pull) &nbsp;·&nbsp; Red = karar (final / tonic) &nbsp;·&nbsp;
       Blue = perde currently sounding &nbsp;·&nbsp; Amber + <i>italic</i> = geçki (borrowed) perde while sounding.
-      Comma values are shown between perdes.</div>
+      Comma values are shown between perdes. In the note list below the ribbon: faded names = pest/tiz register
+      (outside the home octave), &nbsp;<b>—</b>&nbsp; = a breath between sections; hover any note for its exact comma value.</div>
     <div style="margin-top:6px">Engine: arc-form cell composer. Ten melodic cells arranged over a fixed 16-slot repeat
       skeleton; each cell is an arch-contour stepwise walk whose resting perdes snap to
       <i>asma karar</i> (secondary-cadence) perdes, closing with the
       <code>yeden → durak</code> (leading-tone → tonic) formula. Save stores the exact note sequence,
       so Open + Play reproduces a piece identically. The voice is a sampled acoustic guitar, pitch-shifted
-      to the exact makam commas, so it plays true microtones (fretless). v3.81: the 13 basit makams of
+      to the exact makam commas, so it plays true microtones (fretless). v3.88: the 13 basit makams of
       Arel-Ezgi-Uzdilek theory (Özkan, <i>Türk Mûsıkîsi Nazariyatı ve Usûlleri</i>, Ötüken, 1984), with cadence weights,
       geçki rules, yeden pitches, and çarpma densities verified against the SymbTr corpus (Karaosmanoğlu, ISMIR 2012).
       Guitar samples: tonejs-instruments (CC-BY 3.0).</div>
@@ -154,7 +156,7 @@
 
 <script>
 "use strict";
-const APP_VERSION = "3.82";
+const APP_VERSION = "3.88";
 const TRANSPOSE = 0.5;           // playback register (down an octave for a warm range)
 const GTR_LP    = 6000;          // bus lowpass (lower this if the guitar is too tiz)
 const GTR_BODY  = 1.5;           // light body low-shelf (dB)
@@ -216,7 +218,7 @@ const MAKAMLAR = {
   "Hicaz": {
     durak:294, seyir:"inici-cikici", steps:[5,12,5,9,8,5,9],
     perde:["Dügâh","Dik Kürdi","Nim Hicaz","Neva","Hüseyni","Eviç","Gerdaniye","Muhayyer"],
-    guclu:3, asma:[3,4,2], asmaW:{3:.20,4:.11,2:.09,1:.05}, crp:.21, yeden:-9, gecki:[{deg:5,dc:-4}], intone:{2:-1.5},   // geçki: Eviç->Acem · nim hicaz ~1.5c flat (audio-measured)
+    guclu:3, asma:[3,4,2], asmaW:{3:.20,4:.11,2:.09,1:.05}, crp:.21, yeden:-9, pes:2, gecki:[{deg:5,dc:-4}], intone:{2:-1.5},   // geçki: Eviç->Acem · nim hicaz ~1.5c flat · pes to Irak (audio-measured)
     formula:"Hicaz tetrachord + Rast pentachord · dominant Neva"
   },
   "Uzzal": {
@@ -303,7 +305,8 @@ function generateArc(m){
   const STRUCT=['A','B','C','D','A','B','C','E','F','G','H','I','H','J','F','G'];
   const spec={ A:[8,0,1.4,"flow"], B:[8,2,1.2,"fast"], C:[12,Math.min(N-2,guclu),0,"flow"], D:[4,2,-1,"lyric"], E:[26,guclu,1,"fast"],
                F:[22,guclu,0,"flow"], G:[40,N-2,1,"fast"], H:[6,N-1,0,"lyric"], I:[6,N-2,-1,"lyric"], J:[28,N-2,-1,"flow"] };
-  const rb = (r=>r<0.25?0:r<0.60?-1:r<0.85?-2:-3)(Math.random());                             // per-piece register personality (0=corpus-like, -1/-2=karar-centered, cf. measured taksims)
+  const rbDraw = (r=>r<0.23?0:r<0.56?-1:r<0.79?-2:r<0.92?-3:r<0.97?-4:-5)(Math.random());     // per-piece register personality; rare deep tail (~8%) = karar-centered taksim (cf. measured recording)
+  const rb = Math.max(rbDraw, -(3+pes));                                                       // deep personalities need pest room below the durak
   const cells={}; for(const k in spec){ const [ln,an,db,rh]=spec[k]; cells[k]=makeCell(ln,clamp(an+rb),db,rh); }
   let cur=1; const ns=STRUCT.length;
   function playCell(cell,g,dscale,tr,alt){                                     // tr: sequence transpose (repeats return a step up/down, Tatyos-style); alt: geçki coloring
@@ -343,7 +346,7 @@ function generateArc(m){
     const note={idx:cp,dur:d,vel:Math.max(0.28,0.74-(kk/dn)*0.4)};
     if(Math.random()<0.5) note.gliss=(kOf(cp)-kOf(pp))*(1200/53);              // slide down toward the karar
     seq.push(note); kk++; }
-  seq.push({idx:-1,dur:0.5,vel:0.4});                                          // yeden
+  seq.push({yeden:true,dur:0.5,vel:0.4});                                      // yeden (dedicated marker; idx=-1 is the pest scale degree)
   seq.push({idx:0,dur:3.2,vel:0.5,vib:true});                                 // final durak, held with vibrato
   const MAX_SAME=3, MAX_ALT=6; const hist=[];                                  // post-pass: up to 3 identical perdes in a row, and up to a 6-note a-b-a-b-a-b oscillation (matches Tatyos practice)
   for(let i=0;i<seq.length;i++){ const a=seq[i]; if(a.rest||a.idx==null) continue;
@@ -480,14 +483,31 @@ function drawMeta(m){
     `<span>Seyir: <b>${seyirEn}</b></span>`+
     `<span class="formula">${m.formula}</span>`;
 }
+/* classical name of a perde one octave below the home-octave name (AEU register naming) */
+const PEST_NAME={"Gerdaniye":"Rast","Eviç":"Irak","Dik Acem":"Dik Irak","Acem":"Acem Aşiran",
+  "Hüseyni":"Hüseyni Aşiran","Hisar":"Hisar Aşiran","Neva":"Yegâh","Nim Şehnaz":"Nim Zirgüle",
+  "Nim Hicaz":"Kaba Nim Hicaz","Çârgâh":"Kaba Çârgâh","Segâh":"Kaba Segâh","Buselik":"Kaba Buselik",
+  "Kürdi":"Kaba Kürdi","Dik Kürdi":"Kaba Dik Kürdi","Dügâh":"Kaba Dügâh","Rast":"Kaba Rast"};
+function perdeName(m,e){
+  if(!Number.isInteger(e)) return "";                         // rests and malformed entries
+  if(e>=0 && e<m.perde.length) return m.perde[e];
+  const P=m.perde.length-1, ff=((e%P)+P)%P, base=m.perde[ff]||"";
+  if(e<0) return PEST_NAME[base] || ("Pest "+base);
+  return "Tiz "+base.replace(/^Tiz /,"");                    // above the octave: tiz register
+}
 function drawSeq(m){
   if(!elSeq) return;
+  const off=offsets(m);
   elSeq.innerHTML="";
   seq.forEach((s,i)=>{
     const el=document.createElement("div"); el.className="note"; el.dataset.i=i;
-    if(s.idx===-1){ el.textContent="yeden"; }
-    else { el.textContent=m.perde[s.idx];
-      if(s.idx===0) el.classList.add("karar"); else if(s.idx===m.guclu) el.classList.add("guclu"); }
+    if(s.rest){ el.textContent="—"; el.style.opacity=0.45; el.title="breath"; elSeq.appendChild(el); return; }   // breath between sections
+    if(!s.rest){ const k = s.yeden ? m.yeden : komaIdx(off,s.idx);
+      el.title = (s.yeden?"yeden":perdeName(m,s.idx)) + " · " + (k>0?"+":"") + k + " koma"; }
+    if(s.yeden){ el.textContent="yeden"; }
+    else { el.textContent=perdeName(m,s.idx);
+      if(s.idx===0) el.classList.add("karar"); else if(s.idx===m.guclu) el.classList.add("guclu");
+      if(s.idx<0 || s.idx>=m.perde.length) el.style.opacity=0.75; }   // pest/tiz register marked subtly
     if(s.alt) el.style.fontStyle="italic";                                     // geçki (borrowed) perde
     elSeq.appendChild(el);
   });
@@ -529,10 +549,10 @@ function scheduleCycle(token, useCurrent){
     const dur=s.dur*beat;
     if(s.rest){ t+=dur; return; }                  // breath between phrases (silence)
     let f, idx;
-    { let k = s.idx===-1 ? m.yeden : komaIdx(off,s.idx); var borrowed=false;
-      if(s.alt && m.gecki && s.idx!==-1){ const P=N-1, ff=((s.idx%P)+P)%P; for(const ga of m.gecki) if(ff===ga.deg){ k+=ga.dc; borrowed=true; } }   // geçki: borrowed perde
-      if(!borrowed && m.intone && s.idx!==-1){ const P=N-1, ff=((s.idx%P)+P)%P; if(m.intone[ff]) k+=m.intone[ff]; }   // empirical intonation (flat aug-2nd, measured from taksim recordings)
-      f=koma2hz(m.durak,k)*TRANSPOSE; idx = s.idx===-1?-1:((s.idx>=0&&s.idx<=N-1)?s.idx:(((s.idx%(N-1))+(N-1))%(N-1))); }
+    { let k = s.yeden ? m.yeden : komaIdx(off,s.idx); var borrowed=false;
+      if(s.alt && m.gecki && !s.yeden){ const P=N-1, ff=((s.idx%P)+P)%P; for(const ga of m.gecki) if(ff===ga.deg){ k+=ga.dc; borrowed=true; } }   // geçki: borrowed perde
+      if(!borrowed && m.intone && !s.yeden){ const P=N-1, ff=((s.idx%P)+P)%P; if(m.intone[ff]) k+=m.intone[ff]; }   // empirical intonation (flat aug-2nd, measured from taksim recordings)
+      f=koma2hz(m.durak,k)*TRANSPOSE; idx = s.yeden?-1:((s.idx>=0&&s.idx<=N-1)?s.idx:(((s.idx%(N-1))+(N-1))%(N-1))); }
     notes.push({ f, dur, t, idx, i, vel:s.vel, gliss:s.gliss, vib:s.vib, alt:(typeof borrowed!=="undefined"&&borrowed)||undefined });
     t+=dur;
   });
@@ -575,7 +595,10 @@ function loadPiece(obj){
 fileInput.onchange=e=>{
   const f=e.target.files[0]; if(!f) return;
   const r=new FileReader();
-  r.onload=()=>{ try{ loadPiece(JSON.parse(r.result)); }catch(err){ status("Could not read that file",true); } };
+  r.onload=()=>{
+    let obj; try{ obj=JSON.parse(r.result); }catch(err){ status("Could not read that file (not valid JSON)",true); return; }
+    try{ loadPiece(obj); }catch(err){ status("Opened, but display failed: "+err.message,true); console.error(err); }
+  };
   r.readAsText(f); fileInput.value="";
 };
 
@@ -587,9 +610,9 @@ function resolveNotes(){
     const dur=s.dur*beat;
     if(s.rest){ t+=dur; return; }
     let f;
-    { let k=s.idx===-1?m.yeden:komaIdx(off,s.idx); let brw=false;
-      if(s.alt && m.gecki && s.idx!==-1){ const P=N-1, ff=((s.idx%P)+P)%P; for(const ga of m.gecki) if(ff===ga.deg){ k+=ga.dc; brw=true; } }   // geçki: borrowed perde
-      if(!brw && m.intone && s.idx!==-1){ const P=N-1, ff=((s.idx%P)+P)%P; if(m.intone[ff]) k+=m.intone[ff]; }
+    { let k=s.yeden?m.yeden:komaIdx(off,s.idx); let brw=false;
+      if(s.alt && m.gecki && !s.yeden){ const P=N-1, ff=((s.idx%P)+P)%P; for(const ga of m.gecki) if(ff===ga.deg){ k+=ga.dc; brw=true; } }   // geçki: borrowed perde
+      if(!brw && m.intone && !s.yeden){ const P=N-1, ff=((s.idx%P)+P)%P; if(m.intone[ff]) k+=m.intone[ff]; }
       f=koma2hz(m.durak,k)*TRANSPOSE; }
     notes.push({f,dur,t,vel:s.vel,gliss:s.gliss,vib:s.vib}); t+=dur;
   });
