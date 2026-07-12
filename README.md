@@ -2,7 +2,7 @@
 
 An artificial composer that improvises Turkish makam **taksim** in the browser, voiced with a sampled, microtonal (fretless) acoustic guitar. Single HTML file, no dependencies, fully offline.
 
-**Live demo:** https://senolgulgonul.github.io/suni/
+**Live demo:** <https://senolgulgonul.github.io/suni/>
 
 > The name is a mahlas (a classical composer's pen name) in the old style of Itrî or Zekâî. It reads like one, and it also means "artificial": a composer that works the makam by calculation. The project started life as *Neyron* (from *ney*), then traded the flute for a guitar.
 
@@ -17,7 +17,7 @@ Nothing is pre-baked: every run is a different improvisation, but always recogni
 ## Features
 
 - **Endless live taksim**, generated phrase by phrase until you stop it.
-- **14 makams**: the 13 basic (*basit*) makams of Turkish music plus Segâh.
+- **13 makams**: the basic (*basit*) makams of Turkish music.
 - **True microtones** from the AEU 53-comma system (not 12-tone equal temperament).
 - **A fretless guitar voice**: real acoustic-guitar samples, pitch-shifted per note to the exact makam comma.
 - **Perde ribbon** that lights the sounding pitch in real time, with the güçlü and karar marked.
@@ -27,13 +27,13 @@ Nothing is pre-baked: every run is a different improvisation, but always recogni
 
 ## The makams
 
-Çârgâh, Bûselik, Kürdî, Rast, Uşşâk, Nevâ, Hümâyun, Hicaz, Uzzâl, Zirgüleli Hicaz, Hüseynî, Karcığar, Basit Sûzinâk, and Segâh.
+Çârgâh, Bûselik, Kürdî, Rast, Uşşâk, Nevâ, Hümâyun, Hicaz, Uzzâl, Zirgüleli Hicaz, Hüseynî, Karcığar, and Basit Sûzinâk.
 
 A nice pair to compare: **Hicaz** and **Uzzâl** share the same scale but pull toward a different dominant, so they sound related yet distinct.
 
 ## How it works
 
-**The composer (generation).** A seyir-aware weighted random walk over the makam's perdes. The starting region is set by the makam's seyir (ascending, descending, or descending-ascending). Motion is mostly stepwise with a directional bias, plus a gravitational pull toward the güçlü (dominant) in the middle of a phrase and toward the karar (final) at phrase ends. Phrase endings lock onto *asma karar* (secondary-cadence) perdes, and the closing phrase resolves with the `yeden -> durak` (leading-tone to tonic) formula. So the result is random but never arbitrary: it stays inside the grammar of the makam.
+**The composer (generation).** An arc-form cell composer. Ten melodic cells are arranged over a fixed 16-slot repeat skeleton (the opening trio returns, and a closing pair comes back at the end), so every piece has a dramatic arc: a low, slow opening, a build toward the güçlü, a tiz climax, then a descent to the close. Each cell is an arch-contour stepwise walk over the makam's perdes; resting perdes snap to *asma karar* (secondary-cadence) perdes, and the piece resolves with the `yeden -> durak` (leading-tone to tonic) formula. So the result is random but never arbitrary: it stays inside the grammar of the makam.
 
 **The pitches (microtones).** Frequencies come from the Arel-Ezgi-Uzdilek 53-comma system. Each perde is an exact number of commas above the durak, converted to Hz with `durak * 2^(comma/53)`. No rounding to piano keys.
 
@@ -41,15 +41,15 @@ A nice pair to compare: **Hicaz** and **Uzzâl** share the same scale but pull t
 
 ## Usage
 
-| Control | What it does |
-| --- | --- |
-| **Play / Stop** | Start the endless taksim, or stop it. |
-| **New** | Compose a fresh taksim in the current makam (without starting playback). |
-| **Makam** | Choose the makam. Changing it loads a new improvisation. |
-| **Tempo** | Speed of the playback. |
-| **Save** | Download the current piece as a small JSON file (exact notes). |
-| **Open** | Load a saved piece and replay it exactly. |
-| **WAV** | Render the current taksim to a mono WAV file. |
+| Control         | What it does                                                              |
+| --------------- | ------------------------------------------------------------------------- |
+| **Play / Stop** | Start the endless taksim, or stop it.                                     |
+| **New**         | Compose a fresh taksim in the current makam (without starting playback).  |
+| **Makam**       | Choose the makam. Changing it loads a new improvisation.                  |
+| **Tempo**       | Speed of the playback.                                                    |
+| **Save**        | Download the current piece as a small JSON file (exact notes).            |
+| **Open**        | Load a saved piece and replay it exactly.                                 |
+| **WAV**         | Render the current taksim to a mono WAV file.                             |
 
 Audio starts only after you press Play, as browsers require.
 
