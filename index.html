@@ -146,7 +146,7 @@
       <i>asma karar</i> (secondary-cadence) perdes, closing with the
       <code>yeden → durak</code> (leading-tone → tonic) formula. Save stores the exact note sequence,
       so Open + Play reproduces a piece identically. The voice is a sampled acoustic guitar, pitch-shifted
-      to the exact makam commas, so it plays true microtones (fretless). v3.88: the 13 basit makams of
+      to the exact makam commas, so it plays true microtones (fretless). v3.89: the 13 basit makams of
       Arel-Ezgi-Uzdilek theory (Özkan, <i>Türk Mûsıkîsi Nazariyatı ve Usûlleri</i>, Ötüken, 1984), with cadence weights,
       geçki rules, yeden pitches, and çarpma densities verified against the SymbTr corpus (Karaosmanoğlu, ISMIR 2012).
       Guitar samples: tonejs-instruments (CC-BY 3.0).</div>
@@ -156,7 +156,7 @@
 
 <script>
 "use strict";
-const APP_VERSION = "3.88";
+const APP_VERSION = "3.89";
 const TRANSPOSE = 0.5;           // playback register (down an octave for a warm range)
 const GTR_LP    = 6000;          // bus lowpass (lower this if the guitar is too tiz)
 const GTR_BODY  = 1.5;           // light body low-shelf (dB)
@@ -188,7 +188,7 @@ const MAKAMLAR = {
   "Kürdi": {
     durak:294, seyir:"cikici", steps:[4,9,9,9,4,9,9],
     perde:["Dügâh","Kürdi","Çârgâh","Neva","Hüseyni","Acem","Gerdaniye","Muhayyer"],
-    guclu:3, asma:[3,1], yeden:-9,
+    guclu:3, asma:[3,1], yeden:-9, deg2:{k:-14,n:"Irak"},   // pest genişleme to Irak (SymbTr)
     formula:"Kürdi tetrachord + Buselik pentachord"
   },
   "Rast": {
@@ -200,13 +200,13 @@ const MAKAMLAR = {
   "Uşşak": {
     durak:294, seyir:"cikici", steps:[8,5,9,9,4,9,9],
     perde:["Dügâh","Segâh","Çârgâh","Neva","Hüseyni","Acem","Gerdaniye","Muhayyer"],
-    guclu:3, asma:[3,1,2,6], asmaW:{3:.27,1:.11,2:.10,6:.09}, crp:.26, yeden:-9, gecki:[{deg:5,dc:4}],    // geçki: Acem->Eviç (Hüseyni çeşnisi)
+    guclu:3, asma:[3,1,2,6], asmaW:{3:.27,1:.11,2:.10,6:.09}, crp:.26, yeden:-9, gecki:[{deg:5,dc:4}], deg2:{k:-14,n:"Irak"},    // geçki: Acem->Eviç · pest genişleme to Irak, not acem aşiran (SymbTr: -14 12%, -18 0%)
     formula:"Uşşak tetrachord + Buselik pentachord"
   },
   "Neva": {
     durak:294, seyir:"inici-cikici", steps:[8,5,9,9,8,5,9],
     perde:["Dügâh","Segâh","Çârgâh","Neva","Hüseyni","Eviç","Gerdaniye","Muhayyer"],
-    guclu:3, asma:[3,1], yeden:-9, gecki:[{deg:5,dc:-4}],   // geçki: Eviç->Acem (Uşşak rengi)
+    guclu:3, asma:[3,1], yeden:-9, deg2:{k:-14,n:"Irak"}, gecki:[{deg:5,dc:-4}],   // geçki: Eviç->Acem (Uşşak rengi)
     formula:"Uşşak tetrachord + Rast pentachord"
   },
   "Hümayun": {
@@ -236,7 +236,7 @@ const MAKAMLAR = {
   "Hüseyni": {
     durak:294, seyir:"cikici", steps:[8,5,9,9,8,5,9],
     perde:["Dügâh","Segâh","Çârgâh","Neva","Hüseyni","Eviç","Gerdaniye","Muhayyer"],
-    guclu:4, asma:[4,3,2], asmaW:{4:.24,3:.18,2:.13,6:.06}, crp:.25, yeden:-9, tiz:0, pes:2, gecki:[{deg:5,dc:-4}],   // geçki: Eviç->Acem  // Hüseyni: stays in the home octave, explores below the durak
+    guclu:4, asma:[4,3,2], asmaW:{4:.24,3:.18,2:.13,6:.06}, crp:.25, yeden:-9, tiz:0, pes:2, gecki:[{deg:5,dc:-4}], deg2:{k:-18,n:"Acem Aşiran"},   // geçki: Eviç->Acem · pest genişleme to acem aşiran, not ırak (SymbTr: -18 12%, -14 2%)
     formula:"Hüseyni pentachord + Uşşak tetrachord · dominant Hüseyni"
   },
   "Karcığar": {
@@ -254,6 +254,7 @@ const MAKAMLAR = {
 };
 
 function offsets(m){ const o=[0]; for(const s of m.steps) o.push(o[o.length-1]+s); return o; }
+function degKoma(m,off,e){ if(e===-2 && m.deg2) return m.deg2.k; return komaIdx(off,e); }   // corpus-verified pest genişleme override
 function komaIdx(off,e){ const P=off.length-1; return 53*Math.floor(e/P)+off[((e%P)+P)%P]; }   // extended degree -> commas (pes/tiz octaves)
 const koma2hz = (durak,k)=> durak*Math.pow(2,k/53);
 
@@ -271,7 +272,7 @@ function generateArc(m){
   const TOP=N-1+tiz, BOT=-pes;
   const seq=[]; const beat=60/(+elTempo.value);
   const rest=Array.from(new Set([0,...m.asma]));
-  const off=offsets(m); const kOf=e=>komaIdx(off,e);
+  const off=offsets(m); const kOf=e=>degKoma(m,off,e);
   const clamp=e=>Math.max(BOT,Math.min(TOP,e));
   const asmaSnap=e=>{ for(const o of [0,1,-1]){ const c=e+o, ff=((c%P)+P)%P; if(rest.includes(ff)) return clamp(c); } return clamp(e); };
 
@@ -490,6 +491,7 @@ const PEST_NAME={"Gerdaniye":"Rast","Eviç":"Irak","Dik Acem":"Dik Irak","Acem":
   "Kürdi":"Kaba Kürdi","Dik Kürdi":"Kaba Dik Kürdi","Dügâh":"Kaba Dügâh","Rast":"Kaba Rast"};
 function perdeName(m,e){
   if(!Number.isInteger(e)) return "";                         // rests and malformed entries
+  if(e===-2 && m.deg2) return m.deg2.n;                       // corpus-verified pest genişleme
   if(e>=0 && e<m.perde.length) return m.perde[e];
   const P=m.perde.length-1, ff=((e%P)+P)%P, base=m.perde[ff]||"";
   if(e<0) return PEST_NAME[base] || ("Pest "+base);
@@ -502,7 +504,7 @@ function drawSeq(m){
   seq.forEach((s,i)=>{
     const el=document.createElement("div"); el.className="note"; el.dataset.i=i;
     if(s.rest){ el.textContent="—"; el.style.opacity=0.45; el.title="breath"; elSeq.appendChild(el); return; }   // breath between sections
-    if(!s.rest){ const k = s.yeden ? m.yeden : komaIdx(off,s.idx);
+    if(!s.rest){ const k = s.yeden ? m.yeden : degKoma(m,off,s.idx);
       el.title = (s.yeden?"yeden":perdeName(m,s.idx)) + " · " + (k>0?"+":"") + k + " koma"; }
     if(s.yeden){ el.textContent="yeden"; }
     else { el.textContent=perdeName(m,s.idx);
@@ -549,7 +551,7 @@ function scheduleCycle(token, useCurrent){
     const dur=s.dur*beat;
     if(s.rest){ t+=dur; return; }                  // breath between phrases (silence)
     let f, idx;
-    { let k = s.yeden ? m.yeden : komaIdx(off,s.idx); var borrowed=false;
+    { let k = s.yeden ? m.yeden : degKoma(m,off,s.idx); var borrowed=false;
       if(s.alt && m.gecki && !s.yeden){ const P=N-1, ff=((s.idx%P)+P)%P; for(const ga of m.gecki) if(ff===ga.deg){ k+=ga.dc; borrowed=true; } }   // geçki: borrowed perde
       if(!borrowed && m.intone && !s.yeden){ const P=N-1, ff=((s.idx%P)+P)%P; if(m.intone[ff]) k+=m.intone[ff]; }   // empirical intonation (flat aug-2nd, measured from taksim recordings)
       f=koma2hz(m.durak,k)*TRANSPOSE; idx = s.yeden?-1:((s.idx>=0&&s.idx<=N-1)?s.idx:(((s.idx%(N-1))+(N-1))%(N-1))); }
@@ -610,7 +612,7 @@ function resolveNotes(){
     const dur=s.dur*beat;
     if(s.rest){ t+=dur; return; }
     let f;
-    { let k=s.yeden?m.yeden:komaIdx(off,s.idx); let brw=false;
+    { let k=s.yeden?m.yeden:degKoma(m,off,s.idx); let brw=false;
       if(s.alt && m.gecki && !s.yeden){ const P=N-1, ff=((s.idx%P)+P)%P; for(const ga of m.gecki) if(ff===ga.deg){ k+=ga.dc; brw=true; } }   // geçki: borrowed perde
       if(!brw && m.intone && !s.yeden){ const P=N-1, ff=((s.idx%P)+P)%P; if(m.intone[ff]) k+=m.intone[ff]; }
       f=koma2hz(m.durak,k)*TRANSPOSE; }
