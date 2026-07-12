@@ -139,11 +139,12 @@
     <div>Green = güçlü (dominant / half-cadence pull) &nbsp;·&nbsp; Red = karar (final / tonic) &nbsp;·&nbsp;
       Blue = perde currently sounding &nbsp;·&nbsp; Amber + <i>italic</i> = geçki (borrowed) perde while sounding.
       Comma values are shown between perdes.</div>
-    <div style="margin-top:6px">Engine: seyir-aware weighted random walk. Phrase endings lock onto
-      <i>asma karar</i> (secondary-cadence) perdes; the final phrase closes with the
+    <div style="margin-top:6px">Engine: arc-form cell composer. Ten melodic cells arranged over a fixed 16-slot repeat
+      skeleton; each cell is an arch-contour stepwise walk whose resting perdes snap to
+      <i>asma karar</i> (secondary-cadence) perdes, closing with the
       <code>yeden → durak</code> (leading-tone → tonic) formula. Save stores the exact note sequence,
       so Open + Play reproduces a piece identically. The voice is a sampled acoustic guitar, pitch-shifted
-      to the exact makam commas, so it plays true microtones (fretless). v3.80: the 13 basit makams of
+      to the exact makam commas, so it plays true microtones (fretless). v3.81: the 13 basit makams of
       Arel-Ezgi-Uzdilek theory (Özkan, <i>Türk Mûsıkîsi Nazariyatı ve Usûlleri</i>, Ötüken, 1984), with cadence weights,
       geçki rules, yeden pitches, and çarpma densities verified against the SymbTr corpus (Karaosmanoğlu, ISMIR 2012).
       Guitar samples: tonejs-instruments (CC-BY 3.0).</div>
@@ -153,11 +154,10 @@
 
 <script>
 "use strict";
-const APP_VERSION = "3.80";
+const APP_VERSION = "3.81";
 const TRANSPOSE = 0.5;           // playback register (down an octave for a warm range)
 const GTR_LP    = 6000;          // bus lowpass (lower this if the guitar is too tiz)
 const GTR_BODY  = 1.5;           // light body low-shelf (dB)
-const REF_SHIFT = 1.0;           // reference (sample) piece pitch; 1.0 = exact original pitch
 const REVERB_RT = 3.3;           // reverb decay (s); set from Yorgo Hicaz (RT60-like ~5s, tamed to 3.3 to avoid wash)
 const REVERB_WET = 0.24;         // reverb amount; lower = drier
 const GTR_RING_BASE = 0.9;       // note decay/ring: base seconds (raise for more legato, smoother transitions)
@@ -165,26 +165,6 @@ const GTR_RING_MUL  = 2.4;       //   + this * note-duration
 const GTR_RING_MAX  = 1.9;       //   capped near the sample length
 const GTR_ATTACK    = 0.012;     // attack ramp (s); longer = softer pluck, less obvious note edges
 
-/* Default piece = a phrase transcribed from the reference oud recording (untitled6,
-   31.6-43.2 s, between two rests). Absolute hz pitches, durations in beats at 112 bpm,
-   so it plays back at the recording's real timing. Press New for a generated Hicaz taksim. */
-const DEFAULT_PIECE=[
-  {hz:290.1,dur:0.282},{hz:262.0,dur:0.14},{hz:295.1,dur:0.205},{hz:252.0,dur:0.185},{hz:260.3,dur:0.185},
-  {hz:221.4,dur:0.14},{hz:221.1,dur:0.14},{hz:221.1,dur:0.185},{hz:221.6,dur:0.14},{hz:220.6,dur:0.943},
-  {hz:233.6,dur:0.259},{hz:255.7,dur:0.151},{hz:250.3,dur:0.271},{hz:251.9,dur:0.185},{hz:255.4,dur:0.228},
-  {hz:221.0,dur:0.217},{hz:220.7,dur:0.239},{hz:220.7,dur:0.151},{hz:220.7,dur:0.638},{hz:220.9,dur:4.118},
-  {hz:224.4,dur:0.194},{hz:207.9,dur:0.162},{hz:208.8,dur:0.239},{hz:184.7,dur:0.174},{hz:202.6,dur:0.194},
-  {hz:205.7,dur:0.325},{hz:204.8,dur:0.271},{hz:197.1,dur:0.293},{hz:187.2,dur:0.205},{hz:191.5,dur:0.259},
-  {hz:188.7,dur:0.205},{hz:202.4,dur:0.271},{hz:203.5,dur:0.185},{hz:213.1,dur:0.205},{hz:205.2,dur:0.476},
-  {hz:221.1,dur:0.217},{hz:110.2,dur:0.162},{hz:109.5,dur:0.162},{hz:107.4,dur:0.162},{hz:165.8,dur:0.217},
-  {hz:110.3,dur:0.205},{hz:110.1,dur:0.185},{hz:220.5,dur:0.162},{hz:110.0,dur:0.174},{hz:110.0,dur:0.314},
-  {hz:110.1,dur:0.185},{hz:110.5,dur:0.14},{hz:222.9,dur:0.455},{hz:220.6,dur:0.151},{hz:220.9,dur:0.812},
-  {hz:110.0,dur:0.14},{hz:209.4,dur:0.185},{hz:221.1,dur:0.185},{hz:110.5,dur:0.162},{hz:110.2,dur:0.151},
-  {hz:110.2,dur:0.194},{hz:110.1,dur:0.293},{hz:109.9,dur:0.217},{hz:221.7,dur:0.162},{hz:221.0,dur:0.151},
-  {hz:220.8,dur:0.271},{hz:221.1,dur:0.271},{hz:220.5,dur:0.314},{hz:110.1,dur:0.217},{hz:109.9,dur:0.14},
-  {hz:110.5,dur:0.14},{hz:166.3,dur:0.151},{hz:110.3,dur:0.151},{hz:129.6,dur:0.271},{hz:222.1,dur:0.304},
-  {hz:110.3,dur:0.151},{hz:110.3,dur:0.151},{hz:110.4,dur:0.228},{hz:221.9,dur:0.433}
-];
 
 /* ---------- AEU 53-comma system ----------
    freq(offsetCommas) = durakHz * 2^(offset/53)
@@ -277,75 +257,6 @@ const koma2hz = (durak,k)=> durak*Math.pow(2,k/53);
 
 /* ---------- Generator: seyir-aware weighted random walk ---------- */
 function rnd(a){return a[Math.floor(Math.random()*a.length)];}
-function weightedPick(cands){
-  let tot=0; for(const c of cands) tot+=c.w;
-  let r=Math.random()*tot;
-  for(const c of cands){ r-=c.w; if(r<=0) return c.i; }
-  return cands[cands.length-1].i;
-}
-function generate(m){
-  const N=m.perde.length, guclu=m.guclu, karar=0;
-  const dirGlobal = m.seyir==="cikici" ? 1 : m.seyir==="inici" ? -1 : 0;
-  let cur = m.seyir==="cikici" ? 0 : m.seyir==="inici" ? N-1 : guclu;
-  const seq=[];
-  const phrases = 5 + Math.floor(Math.random()*3);
-  function step(target, progress){
-    const cands=[];
-    for(let j=Math.max(0,cur-3); j<=Math.min(N-1,cur+3); j++){
-      const d=Math.abs(j-cur);
-      let w = [0.15,1.0,0.42,0.10][d] ?? 0.03;   // stepwise-motion weights nudged toward SymbTr interval statistics
-      const want = Math.sign(target-cur)*0.7 + dirGlobal*0.5;
-      if(want!==0 && j!==cur) w *= 1 + 0.9*Math.max(0,Math.sign(j-cur)*Math.sign(want));
-      if(progress<0.5 && j===guclu && target===guclu) w*=1.4;
-      w *= 1 + (m.asmaW && m.asmaW[j] ? 1.6*m.asmaW[j] : (m.asma.includes(j)?0.25:0));   // corpus-weighted asma karar pull (SymbTr cadence shares)
-      if(progress>0.7) w *= 1 + 2.4*progress*(1/(1+Math.abs(j-target)));
-      if(j===cur) w*=0.4;
-      cands.push({i:j,w});
-    }
-    cur = weightedPick(cands);
-    return cur;
-  }
-  for(let p=0; p<phrases; p++){
-    const last = (p===phrases-1);
-    if(last){
-      const len = 7+Math.floor(Math.random()*5);                  // closing run
-      for(let k=0;k<len;k++){
-        const idx=step(karar,k/len);
-        const r=Math.random();
-        let d = (k===0)?0.8 : (r<0.60?0.25 : r<0.85?0.5 : 0.75);  // fast run toward karar
-        d *= 0.85+Math.random()*0.3;                              // rubato jitter
-        seq.push({idx, dur:d});
-      }
-      seq.push({idx:-1, dur:0.4+Math.random()*0.3});              // yeden, quick
-      seq.push({idx:0,  dur:2.2});                                 // durak, final hold
-    } else {
-      // legitimate resting perdes (durak + asma karar); phrases rest only on these or the tiz peak
-      const rest     = Array.from(new Set([0, ...m.asma]));
-      const lowRest  = rest.filter(x=>x<=guclu);
-      const highRest = rest.filter(x=>x> guclu);
-      let target, half=false;
-      if(p===0){ target = guclu; half=true; }                          // open with a half-cadence on the güçlü
-      else {
-        const r=Math.random();
-        if(r<0.34)      target = (highRest.length && Math.random()<0.5) ? rnd(highRest) : N-1; // tiz peak / high rest
-        else if(r<0.60){ target = guclu; half=true; }                                         // half-cadence on the güçlü
-        else            target = rnd(lowRest.length?lowRest:[0]);                              // rest near the karar
-      }
-      const len = 9+Math.floor(Math.random()*8);                  // long run (9-16 notes)
-      for(let k=0;k<len;k++){
-        const idx=step(target,k/len);
-        const r=Math.random();
-        let d = r<0.62?0.25 : r<0.88?0.5 : 1;                     // mostly sixteenths
-        d *= 0.85+Math.random()*0.3;                              // rubato jitter
-        seq.push({idx, dur:d});
-      }
-      cur=target;
-      const holdDur = half ? 1.8+Math.random()*0.8 : 1.2+Math.random()*0.6;   // clearer pause on a half-cadence
-      seq[seq.length-1]={idx:target, dur:holdDur};                 // rest on a legitimate perde
-    }
-  }
-  return seq;
-}
 
 /* ---------- Long-form taksim: one ~3 min piece with a dramatic arc ----------
    Low, slow intro -> build toward the güçlü -> tiz (high) climax around 60-70% ->
@@ -566,25 +477,12 @@ function drawMeta(m){
     `<span>Seyir: <b>${seyirEn}</b></span>`+
     `<span class="formula">${m.formula}</span>`;
 }
-/* nearest Segah perde name (and scale index) for a reference note's absolute Hz */
-const SEGAH_PERDES=[{c:-17,n:"Rast"},{c:-8,n:"Dügâh"},{c:-4,n:"Kürdi"},{c:0,n:"Segâh"},
-  {c:5,n:"Çârgâh"},{c:14,n:"Neva"},{c:23,n:"Hüseyni"},{c:31,n:"Eviç"},{c:36,n:"Gerdaniye"},
-  {c:45,n:"Muhayyer"},{c:53,n:"Tiz Segâh"}];
-function refInfo(hz,m){
-  const c=53*Math.log2(hz/m.durak);
-  let best=SEGAH_PERDES[0]; for(const p of SEGAH_PERDES){ if(Math.abs(c-p.c)<Math.abs(c-best.c)) best=p; }
-  const off=offsets(m); let bi=-1,bd=1e9;
-  off.forEach((k,i)=>{ const d=Math.abs(c-k); if(d<bd){bd=d;bi=i;} });
-  const role = best.n===m.perde[0] ? "karar" : (best.n===m.perde[m.guclu] ? "guclu" : "");
-  return { name:best.n, idx:(bd<=6?bi:-1), role };
-}
 function drawSeq(m){
   if(!elSeq) return;
   elSeq.innerHTML="";
   seq.forEach((s,i)=>{
     const el=document.createElement("div"); el.className="note"; el.dataset.i=i;
-    if(s.hz!=null){ const r=refInfo(s.hz,m); el.textContent=r.name; el.classList.add("ref"); if(r.role) el.classList.add(r.role); }
-    else if(s.idx===-1){ el.textContent="yeden"; }
+    if(s.idx===-1){ el.textContent="yeden"; }
     else { el.textContent=m.perde[s.idx];
       if(s.idx===0) el.classList.add("karar"); else if(s.idx===m.guclu) el.classList.add("guclu"); }
     if(s.alt) el.style.fontStyle="italic";                                     // geçki (borrowed) perde
@@ -628,8 +526,7 @@ function scheduleCycle(token, useCurrent){
     const dur=s.dur*beat;
     if(s.rest){ t+=dur; return; }                  // breath between phrases (silence)
     let f, idx;
-    if(s.hz!=null){ f=s.hz*REF_SHIFT; idx=refInfo(s.hz,m).idx; }
-    else { let k = s.idx===-1 ? m.yeden : komaIdx(off,s.idx); var borrowed=false;
+    { let k = s.idx===-1 ? m.yeden : komaIdx(off,s.idx); var borrowed=false;
       if(s.alt && m.gecki && s.idx!==-1){ const P=N-1, ff=((s.idx%P)+P)%P; for(const ga of m.gecki) if(ff===ga.deg){ k+=ga.dc; borrowed=true; } }   // geçki: borrowed perde
       f=koma2hz(m.durak,k)*TRANSPOSE; idx = s.idx===-1?-1:((s.idx>=0&&s.idx<=N-1)?s.idx:(((s.idx%(N-1))+(N-1))%(N-1))); }
     notes.push({ f, dur, t, idx, i, vel:s.vel, gliss:s.gliss, vib:s.vib, alt:(typeof borrowed!=="undefined"&&borrowed)||undefined });
@@ -651,7 +548,7 @@ function stop(){ playing=false; btnPlay.textContent="Play"; playToken++; stopAud
 function savePiece(){
   if(!seq.length){ status("Nothing to save yet",true); return; }
   const name=(pname.value.trim()||curName);
-  const obj={ app:"neyron", schema:1, appVersion:APP_VERSION, name, makam:curName, tempo:+elTempo.value, seq };
+  const obj={ app:"suni", schema:1, appVersion:APP_VERSION, name, makam:curName, tempo:+elTempo.value, seq };
   const blob=new Blob([JSON.stringify(obj,null,2)],{type:"application/json"});
   const url=URL.createObjectURL(blob);
   const a=document.createElement("a"); a.href=url; a.download=`${slug(name)}-${stamp()}.json`;
@@ -661,7 +558,7 @@ function savePiece(){
 }
 function loadPiece(obj){
   // accept current and earlier file tag
-  const ok = obj && (obj.app==="neyron" || obj.app==="neyzen" || obj.app==="makam-ney") && MAKAMLAR[obj.makam] && Array.isArray(obj.seq);
+  const ok = obj && obj.app==="suni" && MAKAMLAR[obj.makam] && Array.isArray(obj.seq);
   if(!ok){ status("Not a valid taksim file",true); return; }
   stop();
   curName=obj.makam; selMakam.value=curName;
@@ -686,8 +583,7 @@ function resolveNotes(){
     const dur=s.dur*beat;
     if(s.rest){ t+=dur; return; }
     let f;
-    if(s.hz!=null) f=s.hz*REF_SHIFT;
-    else { let k=s.idx===-1?m.yeden:komaIdx(off,s.idx);
+    { let k=s.idx===-1?m.yeden:komaIdx(off,s.idx);
       if(s.alt && m.gecki && s.idx!==-1){ const P=N-1, ff=((s.idx%P)+P)%P; for(const ga of m.gecki) if(ff===ga.deg) k+=ga.dc; }   // geçki: borrowed perde
       f=koma2hz(m.durak,k)*TRANSPOSE; }
     notes.push({f,dur,t,vel:s.vel,gliss:s.gliss,vib:s.vib}); t+=dur;
@@ -764,15 +660,6 @@ btnOpen.onclick =()=> fileInput.click();
 selMakam.onchange=()=>{ shuffleOn=false; stop(); curName=selMakam.value; load(); };
 elTempo.oninput =()=>{ elTval.textContent=elTempo.value; };
 
-function loadReference(){
-  curName="Hicaz"; selMakam.value="Hicaz";
-  elTempo.value=112; elTval.textContent="112";
-  const m=MAKAMLAR[curName]; drawRibbon(m); drawMeta(m);
-  seq=DEFAULT_PIECE.map(s=>({...s}));
-  drawSeq(m);
-  pname.value="";
-  status("Default = a phrase from the reference oud (untitled6, 31.6-43.2 s). Press Play to A/B the synth against the recording; New makes a fresh Hicaz taksim.");
-}
 load();
 </script>
 </body>
