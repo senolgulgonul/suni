@@ -154,7 +154,7 @@
 
 <script>
 "use strict";
-const APP_VERSION = "3.81";
+const APP_VERSION = "3.82";
 const TRANSPOSE = 0.5;           // playback register (down an octave for a warm range)
 const GTR_LP    = 6000;          // bus lowpass (lower this if the guitar is too tiz)
 const GTR_BODY  = 1.5;           // light body low-shelf (dB)
@@ -210,25 +210,25 @@ const MAKAMLAR = {
   "Hümayun": {
     durak:294, seyir:"inici-cikici", steps:[5,12,5,9,4,9,9],
     perde:["Dügâh","Dik Kürdi","Nim Hicaz","Neva","Hüseyni","Acem","Gerdaniye","Muhayyer"],
-    guclu:3, asma:[3,2,4], asmaW:{3:.25,2:.09,4:.08,1:.07}, crp:.40, yeden:-9, tiz:3, pes:0, gecki:[{deg:5,dc:4}],    // geçki: Acem->Eviç (SymbTr) · climbs above the octave (tiz)
+    guclu:3, asma:[3,2,4], asmaW:{3:.25,2:.09,4:.08,1:.07}, crp:.40, yeden:-9, tiz:3, pes:0, gecki:[{deg:5,dc:4}], intone:{2:-1.5},    // geçki: Acem->Eviç (SymbTr) · climbs above the octave (tiz) · nim hicaz ~1.5c flat (audio-measured)
     formula:"Hicaz tetrachord + Buselik pentachord (hicaz family)"
   },
   "Hicaz": {
     durak:294, seyir:"inici-cikici", steps:[5,12,5,9,8,5,9],
     perde:["Dügâh","Dik Kürdi","Nim Hicaz","Neva","Hüseyni","Eviç","Gerdaniye","Muhayyer"],
-    guclu:3, asma:[3,4,2], asmaW:{3:.20,4:.11,2:.09,1:.05}, crp:.21, yeden:-9, gecki:[{deg:5,dc:-4}],   // geçki: Eviç->Acem (acemli iniş çeşnisi)
+    guclu:3, asma:[3,4,2], asmaW:{3:.20,4:.11,2:.09,1:.05}, crp:.21, yeden:-9, gecki:[{deg:5,dc:-4}], intone:{2:-1.5},   // geçki: Eviç->Acem · nim hicaz ~1.5c flat (audio-measured)
     formula:"Hicaz tetrachord + Rast pentachord · dominant Neva"
   },
   "Uzzal": {
     durak:294, seyir:"inici-cikici", steps:[5,12,5,9,8,5,9],
     perde:["Dügâh","Dik Kürdi","Nim Hicaz","Neva","Hüseyni","Eviç","Gerdaniye","Muhayyer"],
-    guclu:4, asma:[4,3], crp:.21, yeden:-9,
+    guclu:4, asma:[4,3], crp:.21, yeden:-9, intone:{2:-1.5},
     formula:"Hicaz pentachord + Uşşak tetrachord · same scale as Hicaz, dominant Hüseyni"
   },
   "Zirgüleli Hicaz": {
     durak:294, seyir:"inici-cikici", steps:[5,12,5,9,5,12,5],
     perde:["Dügâh","Dik Kürdi","Nim Hicaz","Neva","Hüseyni","Dik Acem","Nim Şehnaz","Muhayyer"],
-    guclu:4, asma:[4,3], crp:.21, yeden:-5,
+    guclu:4, asma:[4,3], crp:.21, yeden:-5, intone:{2:-1.5,6:-1.5},
     formula:"Hicaz pentachord + Hicaz tetrachord · yeden Nim-zirgüle"
   },
   "Hüseyni": {
@@ -240,13 +240,13 @@ const MAKAMLAR = {
   "Karcığar": {
     durak:294, seyir:"inici-cikici", steps:[8,5,9,5,12,5,9],
     perde:["Dügâh","Segâh","Çârgâh","Neva","Hisar","Eviç","Gerdaniye","Muhayyer"],
-    guclu:3, asma:[3,6,2], asmaW:{3:.29,6:.12,2:.11}, crp:.14, yeden:-9, gecki:[{deg:4,dc:4}],   // geçki: Hisar->Hüseyni (SymbTr)
+    guclu:3, asma:[3,6,2], asmaW:{3:.29,6:.12,2:.11}, crp:.14, yeden:-9, gecki:[{deg:4,dc:4}], intone:{5:-1.5},   // geçki: Hisar->Hüseyni (SymbTr) · eviç of hicaz-on-neva ~1.5c flat
     formula:"Uşşak tetrachord + Hicaz on Neva"
   },
   "Basit Suzinak": {
     durak:294, seyir:"inici-cikici", steps:[9,8,5,9,5,12,5],
     perde:["Rast","Dügâh","Segâh","Çârgâh","Neva","Hisar","Eviç","Gerdaniye"],
-    guclu:4, asma:[4,2,3], asmaW:{4:.36,2:.11,3:.09}, crp:.17, yeden:-5,   // yeden Irak (SymbTr-verified -5)
+    guclu:4, asma:[4,2,3], asmaW:{4:.36,2:.11,3:.09}, crp:.17, yeden:-5, intone:{6:-1.5},   // yeden Irak (SymbTr-verified -5) · flat aug-2nd top (audio-measured)
     formula:"Rast pentachord + Hicaz tetrachord on Neva"
   }
 };
@@ -277,7 +277,7 @@ function generateArc(m){
     const RH={ fast:[0.25,0.25,0.25,0.25,0.5,0.25], flow:[0.25,0.25,0.5,0.25,0.5,0.25], lyric:[1.0,0.75,1.5,1.0,0.5,0.75] };
     const pal=RH[rhythm]||RH.flow;
     const notes=[];
-    const span = 3+Math.floor(Math.random()*4);                              // how far this cell reaches from its anchor (3..6 perdes)
+    const span = 2+Math.floor(Math.random()*4);                              // how far this cell reaches from its anchor (2..5 perdes)
     const peak = dirBias>0 ? clamp(anchor+span)                              // ascending cell: peak above anchor
                : dirBias<0 ? clamp(anchor-span)                              // descending cell: trough below anchor
                : clamp(anchor + (Math.random()<0.5?span:-span));            // neutral: arch either way
@@ -288,7 +288,9 @@ function generateArc(m){
                              : clamp(peak   + Math.round((anchor-peak)*((frac-0.5)*2)));   // second half: drift back toward the anchor
         let dir = Math.sign(tgt-p); if(dir===0) dir = Math.random()<0.5?1:-1;
         if(Math.random()<0.22) dir=-dir;                                                   // small wiggle around the line
-        let st=(Math.random()<0.78?1:2)*dir;   // corpus-leaning stepwise bias
+        let st; const rs=Math.random();                                                    // corpus interval stats: descending motion nearly always stepwise,
+        if(dir<0) st=-(rs<0.95?1:2);                                                       // upward motion carries the occasional larger leap (SymbTr skew +1.0)
+        else      st= (rs<0.85?1:rs<0.95?2:3);
         let np=clamp(p+st); if(np===p){ np=clamp(p-st); }                                  // do not stall at an edge
         if(np===pp && np!==p){ const td=Math.sign(tgt-p)||dir; const np2=clamp(p+td*(Math.random()<0.5?1:2)); if(np2!==p&&np2!==pp) np=np2; }   // avoid A-B-A oscillation
         pp=p; p=np; } }
@@ -301,7 +303,8 @@ function generateArc(m){
   const STRUCT=['A','B','C','D','A','B','C','E','F','G','H','I','H','J','F','G'];
   const spec={ A:[8,0,1.4,"flow"], B:[8,2,1.2,"fast"], C:[12,Math.min(N-2,guclu),0,"flow"], D:[4,2,-1,"lyric"], E:[26,guclu,1,"fast"],
                F:[22,guclu,0,"flow"], G:[40,N-2,1,"fast"], H:[6,N-1,0,"lyric"], I:[6,N-2,-1,"lyric"], J:[28,N-2,-1,"flow"] };
-  const cells={}; for(const k in spec){ const [ln,an,db,rh]=spec[k]; cells[k]=makeCell(ln,clamp(an),db,rh); }
+  const rb = (r=>r<0.25?0:r<0.60?-1:r<0.85?-2:-3)(Math.random());                             // per-piece register personality (0=corpus-like, -1/-2=karar-centered, cf. measured taksims)
+  const cells={}; for(const k in spec){ const [ln,an,db,rh]=spec[k]; cells[k]=makeCell(ln,clamp(an+rb),db,rh); }
   let cur=1; const ns=STRUCT.length;
   function playCell(cell,g,dscale,tr,alt){                                     // tr: sequence transpose (repeats return a step up/down, Tatyos-style); alt: geçki coloring
     const rubAmp=0.15+Math.random()*0.1; let rp=Math.random()*Math.PI;
@@ -528,6 +531,7 @@ function scheduleCycle(token, useCurrent){
     let f, idx;
     { let k = s.idx===-1 ? m.yeden : komaIdx(off,s.idx); var borrowed=false;
       if(s.alt && m.gecki && s.idx!==-1){ const P=N-1, ff=((s.idx%P)+P)%P; for(const ga of m.gecki) if(ff===ga.deg){ k+=ga.dc; borrowed=true; } }   // geçki: borrowed perde
+      if(!borrowed && m.intone && s.idx!==-1){ const P=N-1, ff=((s.idx%P)+P)%P; if(m.intone[ff]) k+=m.intone[ff]; }   // empirical intonation (flat aug-2nd, measured from taksim recordings)
       f=koma2hz(m.durak,k)*TRANSPOSE; idx = s.idx===-1?-1:((s.idx>=0&&s.idx<=N-1)?s.idx:(((s.idx%(N-1))+(N-1))%(N-1))); }
     notes.push({ f, dur, t, idx, i, vel:s.vel, gliss:s.gliss, vib:s.vib, alt:(typeof borrowed!=="undefined"&&borrowed)||undefined });
     t+=dur;
@@ -583,8 +587,9 @@ function resolveNotes(){
     const dur=s.dur*beat;
     if(s.rest){ t+=dur; return; }
     let f;
-    { let k=s.idx===-1?m.yeden:komaIdx(off,s.idx);
-      if(s.alt && m.gecki && s.idx!==-1){ const P=N-1, ff=((s.idx%P)+P)%P; for(const ga of m.gecki) if(ff===ga.deg) k+=ga.dc; }   // geçki: borrowed perde
+    { let k=s.idx===-1?m.yeden:komaIdx(off,s.idx); let brw=false;
+      if(s.alt && m.gecki && s.idx!==-1){ const P=N-1, ff=((s.idx%P)+P)%P; for(const ga of m.gecki) if(ff===ga.deg){ k+=ga.dc; brw=true; } }   // geçki: borrowed perde
+      if(!brw && m.intone && s.idx!==-1){ const P=N-1, ff=((s.idx%P)+P)%P; if(m.intone[ff]) k+=m.intone[ff]; }
       f=koma2hz(m.durak,k)*TRANSPOSE; }
     notes.push({f,dur,t,vel:s.vel,gliss:s.gliss,vib:s.vib}); t+=dur;
   });
