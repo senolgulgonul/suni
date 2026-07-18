@@ -94,7 +94,7 @@
 <body>
 <div class="wrap">
   <header>
-    <h1>Sun’î<span class="dot">makam taksim · fretless guitar</span><span class="ver" id="ver">v3.95</span></h1>
+    <h1>Sun’î<span class="dot">makam taksim · fretless guitar</span><span class="ver" id="ver">v3.96</span></h1>
     <p>Sun’î improvises taksims over example makams of Turkish music. The generation is random, yet the <b>seyir</b> (melodic
        direction) and the pull toward the <b>güçlü</b> (dominant) and <b>karar</b> (final) are fixed,
        so every run is different but recognizably the same makam. Pitches come from the AEU 53-comma
@@ -149,14 +149,14 @@
       to the exact makam commas, so it plays true microtones (fretless). v3.89: the 13 basit makams of
       Arel-Ezgi-Uzdilek theory (Özkan, <i>Türk Mûsıkîsi Nazariyatı ve Usûlleri</i>, Ötüken, 1984), with cadence weights,
       geçki rules, yeden pitches, and çarpma densities verified against the SymbTr corpus (Karaosmanoğlu, ISMIR 2012).
-      Guitar samples: tonejs-instruments (CC-BY 3.0). v3.90: iOS background playback (screen-lock keepalive + lock-screen controls via Media Session). v3.91: lock-screen progress bar tracks each taksim arc (Media Session positionState). v3.90-94: on iOS each taksim arc is rendered offline to a WAV and played through a real <audio> element, so playback survives screen lock and the lock screen shows a Now Playing card with transport controls and a live timeline (Media Session). The next arc is pre-rendered in the background for gapless chaining; the AudioContext is suspended on iOS after sample decode so the element alone owns the media session.</div>
+      Guitar samples: tonejs-instruments (CC-BY 3.0). v3.90: iOS background playback (screen-lock keepalive + lock-screen controls via Media Session). v3.91: lock-screen progress bar tracks each taksim arc (Media Session positionState). v3.90-94: on iOS each taksim arc is rendered offline to a WAV and played through a real <audio> element, so playback survives screen lock and the lock screen shows a Now Playing card with transport controls and a live timeline (Media Session). The next arc is pre-rendered in the background for gapless chaining; the AudioContext is suspended (fire-and-forget) once the rendered arc starts, so the element alone owns the media session.</div>
     <div style="margin-top:6px">Composed on the fly by <b>Sun’î</b> &mdash; an artificial composer (a ney that became a guitar). <i>fî-mâ-kân, eser-i Sun’î</i>.</div>
   </footer>
 </div>
 
 <script>
 "use strict";
-const APP_VERSION = "3.95";
+const APP_VERSION = "3.96";
 const TRANSPOSE = 0.5;           // playback register (down an octave for a warm range)
 const GTR_LP    = 6000;          // bus lowpass (lower this if the guitar is too tiz)
 const GTR_BODY  = 1.5;           // light body low-shelf (dB)
@@ -647,6 +647,7 @@ function iosStartBlob(blob,notes){
   el.loop=false; el.volume=1; el.src=iosCurUrl;
   el.onended=iosOnEnded;
   const p=el.play(); if(p&&p.catch)p.catch(()=>{});
+  if(AC && AC.state==="running"){ try{ AC.suspend(); }catch(e){} }   // fire-and-forget: free Now Playing for the element
   iosNotesUI=notes; iosPtr=0;                      // metadata is pushed by the element's "playing" event
   cancelAnimationFrame(iosRAF); iosRAF=requestAnimationFrame(iosHighlightLoop);
 }
@@ -697,9 +698,11 @@ async function iosPlay(){
   playing=true; btnPlay.textContent="Stop";
   status("Rendering\u2026");
   await loadSamples();
-  try{ await AC.suspend(); }catch(e){}             // an active AudioContext can hijack Now Playing on iOS
-  const {notes,total}=resolveNotesFor(curName,seq);
-  const blob=await renderNotesToBlob(notes,total);
+  let notes,total,blob;
+  try{
+    ({notes,total}=resolveNotesFor(curName,seq));
+    blob=await renderNotesToBlob(notes,total);
+  }catch(err){ status("Render failed",true); stop(); return; }
   if(!playing||token!==iosToken) return;
   status("");
   iosStartBlob(blob,notes);
